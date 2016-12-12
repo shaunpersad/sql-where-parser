@@ -2,7 +2,7 @@
 Parses an SQL-like WHERE string into various forms.
 
 Basically, converts this:
-`name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR 'hobby' IS NOT NULL)`
+`name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR hobby IS NOT NULL)`
 
 To this:
 ```
@@ -149,7 +149,7 @@ function mapTokens(tokens) {
         return <span class="token">tokens</span>;
     }
     
-    var html = tokens.map((token) => {
+    const html = tokens.map((token) => {
        
         if (parser.operatorType(token)) {
             return `<div class="operator">${mapTokens(token)}</div>`;
@@ -171,3 +171,172 @@ const html = mapTokens(result.displayArray); //html is now a string of html.
 
 ### syntaxTree
 An abstract syntax tree that describes the operations. Useful for converting to other languages.
+
+Example of converting SQL to Mongo:
+```
+const mongo = {
+    '*': (operand1, operand2) => {
+
+        return {
+            $multiply: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '/': (operand1, operand2) => {
+
+        return {
+            $divide: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '%': (operand1, operand2) => {
+
+        return {
+            $mod: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '+': (operand1, operand2) => {
+
+        return {
+            $add: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '-': (operand1, operand2) => {
+
+        return {
+            $subtract: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $eq: convertToMongo(operand2)
+            }
+        };
+    },
+    '!=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $ne: convertToMongo(operand2)
+            }
+        };
+    },
+    '<': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $lt: convertToMongo(operand2)
+            }
+        };
+    },
+    '>': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $gt: convertToMongo(operand2)
+            }
+        };
+    },
+    '<=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $lte: convertToMongo(operand2)
+            }
+        };
+    },
+    '>=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $gte: convertToMongo(operand2)
+            }
+        };
+    },
+    'NOT': (operand1) => {
+
+        return {
+            $not: convertToMongo(operand1)
+        };
+    },
+    'BETWEEN': (operand1, operand2, operand3) => {
+
+        return {
+            [operand1]: {
+                $gte: convertToMongo(operand2),
+                $lte: convertToMongo(operand3)
+            }
+        };
+    },
+    'IN': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $in: operand2
+            }
+        };
+    },
+    'IS': (operand1, operand2) => {
+
+        return {
+            [operand1]: convertToMongo(operand2)
+        };
+    },
+    'LIKE': (operand1, operand2) => {
+
+        return {
+            [operand1]: new RegExp(`.*${operand2}.*`, 'i')
+        };
+    },
+    'AND': (operand1, operand2) => {
+        return {
+            $and: [
+                convertToMongo(operand1),
+                convertToMongo(operand2)
+            ]
+        };
+    },
+    'OR': (operand1, operand2) => {
+
+        return {
+            $or: [
+                convertToMongo(operand1),
+                convertToMongo(operand2)
+            ]
+        };
+    }
+};
+
+function convertToMongo(syntaxTree) {
+    
+    if (syntaxTree === 'NULL') {
+        return null;
+    }
+    
+    if (!syntaxTree || typeof syntaxTree === 'string' || syntaxTree instanceof String) {
+        return syntaxTree;
+    }
+
+    let converted = {};
+    const operators = Object.keys(syntaxTree);
+    operators.forEach((operator) => {
+
+        let operands = syntaxTree[operator];
+
+        if (operands.constructor !== Array) {
+            operands = [operands];
+        }
+        if (mongo[operator]) {
+            converted = mongo[operator].apply(null, operands);
+        }
+    });
+    
+    return converted;
+}
+
+const sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
+const results = parser.parse(sql);
+
+const mongoQuery = convertToMongo(results.syntaxTree);
+
+```

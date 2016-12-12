@@ -14,8 +14,8 @@ const OPERATOR_TYPE_UNARY = (index) => {
 const OPERATOR_TYPE_BINARY = (index) => {
     return [index - 1, index + 1];
 };
-const OPERATOR_TYPE_BINARY_BETWEEN = (index) => {
-    return [index + 1, index + 3];
+const OPERATOR_TYPE_BETWEEN = (index) => {
+    return [index - 1, index + 1, index + 3];
 };
 const OPERATOR_TYPE_BINARY_IN = (index) => {
     return [index - 1, new NoParseIndex(index + 1)];
@@ -27,7 +27,7 @@ class GenericSqlParser {
 
         const UNARY = this.constructor.OPERATOR_TYPE_UNARY;
         const BINARY = this.constructor.OPERATOR_TYPE_BINARY;
-        const BETWEEN = this.constructor.OPERATOR_TYPE_BINARY_BETWEEN;
+        const BETWEEN = this.constructor.OPERATOR_TYPE_BETWEEN;
         const IN = this.constructor.OPERATOR_TYPE_BINARY_IN;
 
         /**
@@ -409,13 +409,13 @@ class GenericSqlParser {
      * Defines an operator of between type.
      *
      * The BETWEEN operator is unique in where its operands are, so it requires defining a new type,
-     * which is a function that returns the indexes of the operator's two operands.
+     * which is a function that returns the indexes of the operator's operands.
      *
      * @returns {function()}
      * @constructor
      */
-    static get OPERATOR_TYPE_BINARY_BETWEEN() {
-        return OPERATOR_TYPE_BINARY_BETWEEN;
+    static get OPERATOR_TYPE_BETWEEN() {
+        return OPERATOR_TYPE_BETWEEN;
     }
 
     /**
@@ -475,26 +475,185 @@ function mapTokens(tokens) {
 }
 
 
+const mongo = {
+    '*': (operand1, operand2) => {
+
+        return {
+            $multiply: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '/': (operand1, operand2) => {
+
+        return {
+            $divide: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '%': (operand1, operand2) => {
+
+        return {
+            $mod: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '+': (operand1, operand2) => {
+
+        return {
+            $add: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '-': (operand1, operand2) => {
+
+        return {
+            $subtract: [convertToMongo(operand1), convertToMongo(operand2)]
+        };
+    },
+    '=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $eq: convertToMongo(operand2)
+            }
+        };
+    },
+    '!=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $ne: convertToMongo(operand2)
+            }
+        };
+    },
+    '<': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $lt: convertToMongo(operand2)
+            }
+        };
+    },
+    '>': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $gt: convertToMongo(operand2)
+            }
+        };
+    },
+    '<=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $lte: convertToMongo(operand2)
+            }
+        };
+    },
+    '>=': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $gte: convertToMongo(operand2)
+            }
+        };
+    },
+    'NOT': (operand1) => {
+
+        return {
+            $not: convertToMongo(operand1)
+        };
+    },
+    'BETWEEN': (operand1, operand2, operand3) => {
+
+        return {
+            [operand1]: {
+                $gte: convertToMongo(operand2),
+                $lte: convertToMongo(operand3)
+            }
+        };
+    },
+    'IN': (operand1, operand2) => {
+
+        return {
+            [operand1]: {
+                $in: operand2
+            }
+        };
+    },
+    'IS': (operand1, operand2) => {
+
+        return {
+            [operand1]: convertToMongo(operand2)
+        };
+    },
+    'LIKE': (operand1, operand2) => {
+
+        return {
+            [operand1]: new RegExp(`.*${operand2}.*`, 'i')
+        };
+    },
+    'AND': (operand1, operand2) => {
+        return {
+            $and: [
+                convertToMongo(operand1),
+                convertToMongo(operand2)
+            ]
+        };
+    },
+    'OR': (operand1, operand2) => {
+
+        return {
+            $or: [
+                convertToMongo(operand1),
+                convertToMongo(operand2)
+            ]
+        };
+    }
+};
+
+function convertToMongo(syntaxTree) {
+    
+    if (syntaxTree === 'NULL') {
+        return null;
+    }
+    
+    if (!syntaxTree || typeof syntaxTree === 'string' || syntaxTree instanceof String) {
+        return syntaxTree;
+    }
+
+    let converted = {};
+    const operators = Object.keys(syntaxTree);
+    operators.forEach((operator) => {
+
+        let operands = syntaxTree[operator];
+
+        if (operands.constructor !== Array) {
+            operands = [operands];
+        }
+        if (mongo[operator]) {
+            converted = mongo[operator].apply(null, operands);
+        }
+    });
+    
+    return converted;
+}
 
 
 
 
 
 
-
-
-
-
-var parser = new GenericSqlParser();
-
-var sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
-//var sql = '((name = "shaun persad") and (((`occupation` = developer)) and (gender = male)) or not(kind = person))';
-
-console.log('results:');
-var results = parser.parse(sql);
-
-
-
-console.log(JSON.stringify(results));
-console.log('---');
-console.log(mapTokens(results.displayArray));
+//
+//
+// var parser = new GenericSqlParser();
+//
+// var sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
+// //var sql = '((name = "shaun persad") and (((`occupation` = developer)) and (gender = male)) or not(kind = person))';
+//
+// console.log('results:');
+// var results = parser.parse(sql);
+//
+//
+//
+// console.log(JSON.stringify(results));
+// console.log('---');
+// console.log(mapTokens(results.displayArray));
+// console.log('---');
+// console.log(JSON.stringify(convertToMongo(results.syntaxTree)));
