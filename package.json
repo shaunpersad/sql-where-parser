@@ -1,0 +1,43 @@
+{
+  "name": "sql-where-parser",
+  "version": "1.0.0",
+  "description": "Parses an SQL-like WHERE string into various forms.",
+  "main": "GenericSqlParser.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaunpersad/sql-where-parser.git"
+  },
+  "keywords": [
+    "SQL",
+    "parser",
+    "WHERE",
+    "AST",
+    "abstract",
+    "syntax",
+    "tree"
+  ],
+  "author": "Shaun Persad <shaunpersad@gmail.com> (http://inspirationjs.io)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shaunpersad/sql-where-parser/issues"
+  },
+  "homepage": "https://github.com/shaunpersad/sql-where-parser#readme",
+  "devDependencies": {
+    "babel-preset-es2015": "^6.18.0",
+    "babelify": "^7.3.0",
+    "browserify": "^13.1.1",
+    "gulp": "^3.9.1",
+    "gulp-concat": "^2.6.1",
+    "gulp-uglify": "^2.0.0",
+    "mocha": "^3.2.0",
+    "should": "^11.1.2",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
+  },
+  "dependencies": {
+    "es6-symbol": "^3.1.0"
+  }
+}
