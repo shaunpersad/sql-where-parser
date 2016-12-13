@@ -14,10 +14,13 @@ const OPERATOR_TYPE_BINARY_IN = (index) => {
     return [index - 1, new NoParseIndex(index + 1)];
 };
 
+const sortNumber = (a, b) => {
+    return a - b;
+};
 
 class NoParseIndex extends Number {}
 
-class GenericSqlParser {
+module.exports = class GenericSqlParser {
 
     constructor() {
 
@@ -218,12 +221,10 @@ class GenericSqlParser {
                     if (operands) {
 
                         let operandIndexes = operands(index);
-                        
                         if (operandIndexes.constructor !== Array) {
                             operandIndexes = [operandIndexes];
                         }
-                        const indexesToRemove = [index].concat(operandIndexes).sort();
-                        
+                        const indexesToRemove = [index].concat(operandIndexes).sort(sortNumber);
                         const newToken = indexesToRemove.map((index) => {
 
                             return newTokens[index];
@@ -235,7 +236,6 @@ class GenericSqlParser {
 
                             newTokens.splice(indexToRemove, 1);
                         });
-
                         newTokens[index] = newToken;
                     }
                 }
@@ -354,218 +354,4 @@ class GenericSqlParser {
         return NoParseIndex;
     }
 
-}
-
-
-
-//
-// var sqlReadableStream = new ReadableCharacters(sql);
-// parser.parseAsync(sqlReadableStream, (err, results) => {
-//
-//     console.log('Async results:');
-//     console.log(JSON.stringify(results));
-//     console.log('---');
-// });
-//
-
-
-function mapTokens(tokens) {
-
-    if (tokens.constructor !== Array) {
-        return `<span class="token">${tokens}</span>`;
-    }
-
-    const html = tokens.map((token) => {
-
-        if (parser.operatorType(token)) {
-            return `<div class="operator">${mapTokens(token)}</div>`;
-        }
-        return `<div class="expression">${mapTokens(token)}</div>`;
-    });
-
-    return `<div class="operation"><span>(</span>${html.join('')}<span>)</span></div>`;
-}
-
-
-const mongo = {
-    '*': (operand1, operand2) => {
-
-        return {
-            $multiply: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '/': (operand1, operand2) => {
-
-        return {
-            $divide: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '%': (operand1, operand2) => {
-
-        return {
-            $mod: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '+': (operand1, operand2) => {
-
-        return {
-            $add: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '-': (operand1, operand2) => {
-
-        return {
-            $subtract: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $eq: convertToMongo(operand2)
-            }
-        };
-    },
-    '!=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $ne: convertToMongo(operand2)
-            }
-        };
-    },
-    '<': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $lt: convertToMongo(operand2)
-            }
-        };
-    },
-    '>': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $gt: convertToMongo(operand2)
-            }
-        };
-    },
-    '<=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $lte: convertToMongo(operand2)
-            }
-        };
-    },
-    '>=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $gte: convertToMongo(operand2)
-            }
-        };
-    },
-    'NOT': (operand1) => {
-
-        return {
-            $not: convertToMongo(operand1)
-        };
-    },
-    'BETWEEN': (operand1, operand2, operand3) => {
-
-        return {
-            [operand1]: {
-                $gte: convertToMongo(operand2),
-                $lte: convertToMongo(operand3)
-            }
-        };
-    },
-    'IN': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $in: operand2
-            }
-        };
-    },
-    'IS': (operand1, operand2) => {
-
-        return {
-            [operand1]: convertToMongo(operand2)
-        };
-    },
-    'LIKE': (operand1, operand2) => {
-
-        return {
-            [operand1]: new RegExp(`.*${operand2}.*`, 'i')
-        };
-    },
-    'AND': (operand1, operand2) => {
-        return {
-            $and: [
-                convertToMongo(operand1),
-                convertToMongo(operand2)
-            ]
-        };
-    },
-    'OR': (operand1, operand2) => {
-
-        return {
-            $or: [
-                convertToMongo(operand1),
-                convertToMongo(operand2)
-            ]
-        };
-    }
 };
-
-function convertToMongo(syntaxTree) {
-    
-    if (syntaxTree === 'NULL') {
-        return null;
-    }
-    
-    if (!syntaxTree || typeof syntaxTree === 'string' || syntaxTree instanceof String) {
-        return syntaxTree;
-    }
-
-    let converted = {};
-    const operators = Object.keys(syntaxTree);
-    operators.forEach((operator) => {
-
-        let operands = syntaxTree[operator];
-
-        if (operands.constructor !== Array) {
-            operands = [operands];
-        }
-        if (mongo[operator]) {
-            converted = mongo[operator].apply(null, operands);
-        }
-    });
-    
-    return converted;
-}
-
-
-
-
-
-
-
-
-var parser = new GenericSqlParser();
-
-var sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
-//var sql = '((name = "shaun persad") and (((`occupation` = developer)) and (gender = male)) or not(kind = person))';
-
-console.log('results:');
-var results = parser.parse(sql);
-//
-//
-//
-console.log(JSON.stringify(results));
-// console.log('---');
-//console.log(mapTokens(results.displayArray));
-// console.log('---');
-// console.log(JSON.stringify(convertToMongo(results.syntaxTree)));
