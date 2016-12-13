@@ -64,7 +64,9 @@ module.exports = class GenericSqlParser {
                 'LIKE': BINARY
             },
             {
-                'AND': BINARY,
+                'AND': BINARY
+            },
+            {
                 'OR': BINARY
             }
         ];
@@ -82,24 +84,15 @@ module.exports = class GenericSqlParser {
      * @returns {{}} results
      */
     parse(sql) {
-        
-        const results = this.sqlToArrays(`(${sql})`);
-        results.syntaxTree = this.logicalArrayToSyntaxTree(results.logicalArray);
-        
-        return results;
-    }
-
-    
-    sqlToArrays(sql) {
 
         const stack = [];
         const literalStack = [];
 
         const parenthesesStack = [];
         const literalParenthesesStack = [];
-        
-        const tokens = this.constructor.tokenize(sql);
-        
+
+        const tokens = this.constructor.tokenize(`(${sql})`);
+
         tokens.forEach((token) => {
 
             switch (token) {
@@ -126,9 +119,12 @@ module.exports = class GenericSqlParser {
             }
         });
         
+        const logicalArray = this.constructor.reduceArray(stack);
+
         return {
-            logicalArray: this.constructor.reduceArray(stack),
-            displayArray: this.constructor.reduceArray(literalStack)
+            logicalArray: logicalArray,
+            displayArray: this.constructor.reduceArray(literalStack),
+            syntaxTree: this.logicalArrayToSyntaxTree(logicalArray)
         };
     }
     
