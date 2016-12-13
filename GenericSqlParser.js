@@ -89,6 +89,7 @@ module.exports = class GenericSqlParser {
         return results;
     }
 
+    
     sqlToArrays(sql) {
 
         const stack = [];
@@ -97,8 +98,7 @@ module.exports = class GenericSqlParser {
         const parenthesesStack = [];
         const literalParenthesesStack = [];
         
-        const tokenizer = new Tokenizer();
-        const tokens = tokenizer.tokenize(sql);
+        const tokens = this.constructor.tokenize(sql);
         
         tokens.forEach((token) => {
 
@@ -200,7 +200,7 @@ module.exports = class GenericSqlParser {
      * This is a necessary step to build the Abstract Syntax Tree.
      *
      * @param tokens
-     * @returns {*}
+     * @returns {[]}
      */
     setPrecedence(tokens) {
 
@@ -274,6 +274,18 @@ module.exports = class GenericSqlParser {
         }
 
         return found ? found : false;
+    }
+
+    /**
+     * Tokenizes an SQL-like string.
+     *
+     * @param {string} sql
+     * @returns {[]}
+     */
+    static tokenize(sql) {
+
+        const tokenizer = new Tokenizer();
+        return tokenizer.tokenize(sql);
     }
 
     /**
