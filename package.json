@@ -4,7 +4,7 @@
   "description": "Parses an SQL-like WHERE string into various forms.",
   "main": "GenericSqlParser.js",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha --recursive --reporter nyan"
+    "test": "./node_modules/mocha/bin/mocha --recursive"
   },
   "repository": {
     "type": "git",

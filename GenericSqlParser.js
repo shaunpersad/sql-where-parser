@@ -142,7 +142,7 @@ module.exports = class GenericSqlParser {
      */
     logicalArrayToSyntaxTree(logicalArray) {
 
-        if (logicalArray.constructor !== Array) {
+        if (!logicalArray || logicalArray.constructor !== Array) {
             return logicalArray;
         }
 
@@ -295,14 +295,12 @@ module.exports = class GenericSqlParser {
      * @returns {[]}
      */
     static reduceArray(arr) {
-
-        let newArr = [].concat(arr);
         
-        while(newArr.constructor === Array && newArr.length === 1) {
-            newArr = newArr[0];
+        while(arr && arr.constructor === Array && arr.length === 1) {
+            arr = arr[0];
         }
         
-        return newArr;
+        return arr;
     }
     
     /**

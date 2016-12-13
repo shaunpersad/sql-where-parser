@@ -46,6 +46,26 @@ module.exports = class Tokenizer {
     }
     
     push(token) {
+
+        if (this.currentMode === MODE_DEFAULT) {
+            switch(token.toLowerCase()) {
+                case 'null':
+                    token = null;
+                    break;
+                case 'true':
+                    token = true;
+                    break;
+                case 'false':
+                    token = false;
+                    break;
+                default:
+                    if (isFinite(token)) {
+                        token = Number(token);
+                    }
+                    break;
+            }
+        }
+
         this.stack.push(token);
     }
     
