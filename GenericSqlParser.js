@@ -7,7 +7,7 @@ const OPERATOR_TYPE_UNARY = (index) => {
 const OPERATOR_TYPE_BINARY = (index) => {
     return [index - 1, index + 1];
 };
-const OPERATOR_TYPE_BETWEEN = (index) => {
+const OPERATOR_TYPE_TERNARY_BETWEEN = (index) => {
     return [index - 1, index + 1, index + 3];
 };
 const OPERATOR_TYPE_BINARY_IN = (index) => {
@@ -23,11 +23,11 @@ class GenericSqlParser {
 
         const UNARY = this.constructor.OPERATOR_TYPE_UNARY;
         const BINARY = this.constructor.OPERATOR_TYPE_BINARY;
-        const BETWEEN = this.constructor.OPERATOR_TYPE_BETWEEN;
+        const BETWEEN = this.constructor.OPERATOR_TYPE_TERNARY_BETWEEN;
         const IN = this.constructor.OPERATOR_TYPE_BINARY_IN;
 
         /**
-         * Uses the operator precedence found here: https://msdn.microsoft.com/en-us/library/ms190276.aspx.
+         * Defines operator precedence.
          *
          * To change this, simply subclass GenericSqlParser.
          *
@@ -321,13 +321,13 @@ class GenericSqlParser {
      * Defines an operator of between type.
      *
      * The BETWEEN operator is unique in where its operands are, so it requires defining a new type,
-     * which is a function that returns the indexes of the operator's operands.
+     * which is a function that returns the indexes of the operator's three operands.
      *
      * @returns {function()}
      * @constructor
      */
-    static get OPERATOR_TYPE_BETWEEN() {
-        return OPERATOR_TYPE_BETWEEN;
+    static get OPERATOR_TYPE_TERNARY_BETWEEN() {
+        return OPERATOR_TYPE_TERNARY_BETWEEN;
     }
 
     /**
