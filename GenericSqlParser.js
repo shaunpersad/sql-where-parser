@@ -1,12 +1,5 @@
 "use strict";
-const stream = require('stream');
-const ReadableCharacters = require('./ReadableCharacters');
-const TokenizerAsync = require('./TokenizerAsync');
 const Tokenizer = require('./Tokenizer');
-
-class NoParseIndex extends Number {
-
-}
 
 const OPERATOR_TYPE_UNARY = (index) => {
     return index + 1;
@@ -20,6 +13,9 @@ const OPERATOR_TYPE_BETWEEN = (index) => {
 const OPERATOR_TYPE_BINARY_IN = (index) => {
     return [index - 1, new NoParseIndex(index + 1)];
 };
+
+
+class NoParseIndex extends Number {}
 
 class GenericSqlParser {
 
@@ -90,34 +86,6 @@ class GenericSqlParser {
         return results;
     }
 
-    /**
-     * Accepts a Readable Stream of an SQL-like string, and parses it.
-     *
-     * The results will be passed to the results object of the callback.
-     * Callback signature: (err, results).
-     * 
-     * results object:
-     * logicalArray - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
-     * displayArray - the reduced array form of the SQL statement, removing unnecessary parentheses. Useful for displaying in front-end.
-     * syntaxTree - an object describing the SQL operations. Useful for converting to object-based query languages, like Mongo, or ES.
-     *
-     * @param {Readable} sqlStream
-     * @param {function} callback - a function of the signature (err, logicalArray, displayArray, syntaxTree)
-     */
-    parseAsync(sqlStream, callback) {
-        
-        this.sqlStreamToArrays(sqlStream, (err, results) => {
-            
-            if (err) {
-                return callback(err);
-            }
-            
-            results.syntaxTree = this.logicalArrayToSyntaxTree(results.logicalArray);
-            
-            return callback(err, results);
-        });
-    }
-    
     sqlToArrays(sql) {
 
         const stack = [];
@@ -131,7 +99,28 @@ class GenericSqlParser {
         
         tokens.forEach((token) => {
 
-            this.handleToken(token, stack, literalStack, parenthesesStack, literalParenthesesStack);
+            switch (token) {
+                case '(':
+                    parenthesesStack.push(stack.length);
+                    literalParenthesesStack.push(literalStack.length);
+                    break;
+                case ')':
+                    const parenthesisIndex = parenthesesStack.pop();
+                    const literalParenthesisIndex = literalParenthesesStack.pop();
+
+                    const tokens = stack.splice(parenthesisIndex, stack.length);
+                    const literalTokens = literalStack.splice(literalParenthesisIndex, literalStack.length);
+
+                    stack.push(this.setPrecedence(tokens));
+                    literalStack.push(this.constructor.reduceArray(literalTokens));
+                    break;
+                case '':
+                    break;
+                default:
+                    stack.push(token);
+                    literalStack.push(token);
+                    break;
+            }
         });
         
         return {
@@ -139,84 +128,7 @@ class GenericSqlParser {
             displayArray: this.constructor.reduceArray(literalStack)
         };
     }
-
-
-    /**
-     * Accepts a Readable Stream of an SQL-like string, tokenizes it, 
-     * processes each token, and builds the array versions of the SQL statement.
-     *
-     * The results will be two arrays passed to the results object of the callback.
-     * Callback signature: (err, results).
-     *
-     * results object:
-     * logicalArray - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
-     * displayArray - the reduced array form of the SQL statement, removing unnecessary parentheses. Useful for displaying in front-end.
-     *
-     *
-     * @param {Readable} sqlStream
-     * @param {function} callback
-     */
-    sqlStreamToArrays(sqlStream, callback) {
-        
-        const stack = [];
-        const literalStack = [];
-        
-        const parenthesesStack = [];
-        const literalParenthesesStack = [];
-
-        sqlStream
-            .pipe(new TokenizerAsync())
-            .on('data', (token) => {
-
-                this.handleToken(token, stack, literalStack, parenthesesStack, literalParenthesesStack);
-                
-            }).on('error', (err) => {
-
-            callback(err);
-        }).on('end', () => {
-
-            callback(null, {
-                logicalArray: this.constructor.reduceArray(stack),
-                displayArray: this.constructor.reduceArray(literalStack)
-            });
-        });
-    }
-
-    /**
-     * Manages the various stacks necessary to create the arrays.
-     *
-     * @param {string} token
-     * @param {[]} stack
-     * @param {[]} literalStack
-     * @param {[]} parenthesesStack
-     * @param {[]} literalParenthesesStack
-     */
-    handleToken(token, stack, literalStack, parenthesesStack, literalParenthesesStack) {
-
-        switch (token) {
-            case '(':
-                parenthesesStack.push(stack.length);
-                literalParenthesesStack.push(literalStack.length);
-                break;
-            case ')':
-                const parenthesisIndex = parenthesesStack.pop();
-                const literalParenthesisIndex = literalParenthesesStack.pop();
-
-                const tokens = stack.splice(parenthesisIndex, stack.length);
-                const literalTokens = literalStack.splice(literalParenthesisIndex, literalStack.length);
-
-                stack.push(this.setPrecedence(tokens));
-                literalStack.push(this.constructor.reduceArray(literalTokens));
-                break;
-            case '':
-                break;
-            default:
-                stack.push(token);
-                literalStack.push(token);
-                break;
-        }
-    }
-
+    
     /**
      * Converts the logicalArray version of an SQL-like statement into an Abstract Syntax Tree.
      *
@@ -458,20 +370,20 @@ class GenericSqlParser {
 
 
 function mapTokens(tokens) {
-    
+
     if (tokens.constructor !== Array) {
-        return tokens;
+        return `<span class="token">${tokens}</span>`;
     }
-    
-    var html = tokens.map((token) => {
-       
+
+    const html = tokens.map((token) => {
+
         if (parser.operatorType(token)) {
-            return `<strong class="operator">${mapTokens(token)}</strong>`;
+            return `<div class="operator">${mapTokens(token)}</div>`;
         }
-        return `<span class="expression">${mapTokens(token)}</span>`;
+        return `<div class="expression">${mapTokens(token)}</div>`;
     });
-    
-    return `<div class="operation">${html.join('')}</div>`;
+
+    return `<div class="operation"><span>(</span>${html.join('')}<span>)</span></div>`;
 }
 
 
@@ -640,20 +552,20 @@ function convertToMongo(syntaxTree) {
 
 
 
+
+
+var parser = new GenericSqlParser();
+
+var sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
+//var sql = '((name = "shaun persad") and (((`occupation` = developer)) and (gender = male)) or not(kind = person))';
+
+console.log('results:');
+var results = parser.parse(sql);
 //
 //
-// var parser = new GenericSqlParser();
 //
-// var sql = 'name = "Shaun Persad" AND occupation = developer OR (hobby IN ("programming", "nerd stuff") OR "hobby" IS NOT NULL)';
-// //var sql = '((name = "shaun persad") and (((`occupation` = developer)) and (gender = male)) or not(kind = person))';
-//
-// console.log('results:');
-// var results = parser.parse(sql);
-//
-//
-//
-// console.log(JSON.stringify(results));
+console.log(JSON.stringify(results));
 // console.log('---');
-// console.log(mapTokens(results.displayArray));
+//console.log(mapTokens(results.displayArray));
 // console.log('---');
 // console.log(JSON.stringify(convertToMongo(results.syntaxTree)));

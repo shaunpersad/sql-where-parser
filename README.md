@@ -146,7 +146,7 @@ e.g.
 function mapTokens(tokens) {
     
     if (tokens.constructor !== Array) {
-        return <span class="token">tokens</span>;
+        return `<span class="token">${tokens}</span>`;
     }
     
     const html = tokens.map((token) => {
@@ -175,81 +175,12 @@ An abstract syntax tree that describes the operations. Useful for converting to 
 Example of converting SQL to Mongo:
 ```
 const mongo = {
-    '*': (operand1, operand2) => {
-
-        return {
-            $multiply: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '/': (operand1, operand2) => {
-
-        return {
-            $divide: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '%': (operand1, operand2) => {
-
-        return {
-            $mod: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '+': (operand1, operand2) => {
-
-        return {
-            $add: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
-    '-': (operand1, operand2) => {
-
-        return {
-            $subtract: [convertToMongo(operand1), convertToMongo(operand2)]
-        };
-    },
+    ...
     '=': (operand1, operand2) => {
 
         return {
             [operand1]: {
                 $eq: convertToMongo(operand2)
-            }
-        };
-    },
-    '!=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $ne: convertToMongo(operand2)
-            }
-        };
-    },
-    '<': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $lt: convertToMongo(operand2)
-            }
-        };
-    },
-    '>': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $gt: convertToMongo(operand2)
-            }
-        };
-    },
-    '<=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $lte: convertToMongo(operand2)
-            }
-        };
-    },
-    '>=': (operand1, operand2) => {
-
-        return {
-            [operand1]: {
-                $gte: convertToMongo(operand2)
             }
         };
     },
@@ -259,33 +190,12 @@ const mongo = {
             $not: convertToMongo(operand1)
         };
     },
-    'BETWEEN': (operand1, operand2, operand3) => {
-
-        return {
-            [operand1]: {
-                $gte: convertToMongo(operand2),
-                $lte: convertToMongo(operand3)
-            }
-        };
-    },
     'IN': (operand1, operand2) => {
 
         return {
             [operand1]: {
                 $in: operand2
             }
-        };
-    },
-    'IS': (operand1, operand2) => {
-
-        return {
-            [operand1]: convertToMongo(operand2)
-        };
-    },
-    'LIKE': (operand1, operand2) => {
-
-        return {
-            [operand1]: new RegExp(`.*${operand2}.*`, 'i')
         };
     },
     'AND': (operand1, operand2) => {
