@@ -120,8 +120,8 @@ module.exports = class GenericSqlParser {
      *
      * results object:
      * tokens - the tokenized version of the SQL statement.
-     * precedenceArray - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
-     * displayArray - the array form of the SQL statement, using only parentheses found in the original SQL. Useful for displaying in front-end.
+     * expression - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
+     * expressionDisplay - the array form of the SQL statement, using only parentheses found in the original SQL. Useful for displaying in front-end.
      * expressionTree - an array describing the SQL operations. Useful for converting to object-based query languages, like Mongo, or ES.
      *
      * @param {string} sql - An SQL-like string
@@ -129,64 +129,64 @@ module.exports = class GenericSqlParser {
      */
     parse(sql) {
 
-        const precedenceArray = [];
-        const displayArray = [];
+        const expression = [];
+        const expressionDisplay = [];
 
-        const precedenceParentheses = [];
-        const displayParentheses = [];
+        const expressionParentheses = [];
+        const expressionDisplayParentheses = [];
 
         const tokens = this.constructor.tokenize(`(${sql})`, (token) => {
 
             switch (token) {
                 case '(':
-                    precedenceParentheses.push(precedenceArray.length);
-                    displayParentheses.push(displayArray.length);
+                    expressionParentheses.push(expression.length);
+                    expressionDisplayParentheses.push(expressionDisplay.length);
                     break;
                 case ')':
-                    const precedenceParenthesisIndex = precedenceParentheses.pop();
-                    const displayParenthesisIndex = displayParentheses.pop();
+                    const precedenceParenthesisIndex = expressionParentheses.pop();
+                    const displayParenthesisIndex = expressionDisplayParentheses.pop();
 
-                    const precedenceTokens = precedenceArray.splice(precedenceParenthesisIndex, precedenceArray.length);
-                    const displayTokens = displayArray.splice(displayParenthesisIndex, displayArray.length);
+                    const expressionTokens = expression.splice(precedenceParenthesisIndex, expression.length);
+                    const expresisonDisplayTokens = expressionDisplay.splice(displayParenthesisIndex, expressionDisplay.length);
 
-                    precedenceArray.push(this.setPrecedence(precedenceTokens));
-                    displayArray.push(this.constructor.reduceArray(displayTokens));
+                    expression.push(this.setPrecedenceInExpression(expressionTokens));
+                    expressionDisplay.push(this.constructor.reduceArray(expresisonDisplayTokens));
                     break;
                 case '':
                     break;
                 default:
-                    precedenceArray.push(token);
-                    displayArray.push(token);
+                    expression.push(token);
+                    expressionDisplay.push(token);
                     break;
             }
         });
-
+        
         return {
             tokens: tokens,
-            precedenceArray: this.constructor.reduceArray(precedenceArray),
-            displayArray: this.constructor.reduceArray(displayArray),
-            expressionTree: this.expressionTreeFromPrecedenceArray(this.constructor.reduceArray(precedenceArray))
+            expression: this.constructor.reduceArray(expression),
+            expressionDisplay: this.constructor.reduceArray(expressionDisplay),
+            expressionTree: this.expressionTreeFromExpression(this.constructor.reduceArray(expression))
         };
     }
     
     /**
-     * Converts the precedenceArray version of an SQL-like statement into an expression tree.
+     * Converts the expression array version of an SQL-like statement into an expression tree.
      *
-     * @param {[]|*} precedenceArray
+     * @param {[]|*} expression
      * @returns {[]}
      */
-    expressionTreeFromPrecedenceArray(precedenceArray) {
+    expressionTreeFromExpression(expression) {
 
-        if (!precedenceArray || precedenceArray.constructor !== Array) {
-            return precedenceArray;
+        if (!expression || expression.constructor !== Array) {
+            return expression;
         }
 
         let operation = [];
         let tokenIndex = 0;
         
-        while(!operation.length && tokenIndex < precedenceArray.length) {
+        while(!operation.length && tokenIndex < expression.length) {
 
-            const token = precedenceArray[tokenIndex];
+            const token = expression[tokenIndex];
 
             if (typeof token === 'string' || token instanceof String) {
 
@@ -196,16 +196,16 @@ module.exports = class GenericSqlParser {
                 if (getOperandIndexes) {
 
                     const operands = [];
-                    const operandIndexes = getOperandIndexes(tokenIndex, precedenceArray);
+                    const operandIndexes = getOperandIndexes(tokenIndex, expression);
                     let operandIndexesIndex = 0;
                     
                     while (operandIndexesIndex < operandIndexes.length) {
                         const operandIndex = operandIndexes[operandIndexesIndex++];
 
                         if (operandIndex.constructor === this.constructor.LiteralIndex) {
-                            operands.push(precedenceArray[operandIndex]);
+                            operands.push(expression[operandIndex]);
                         } else {
-                            operands.push(this.expressionTreeFromPrecedenceArray(precedenceArray[operandIndex]));
+                            operands.push(this.expressionTreeFromExpression(expression[operandIndex]));
                         }
                     }
                     operation = [potentialOperator, operands];
@@ -220,12 +220,16 @@ module.exports = class GenericSqlParser {
     /**
      * Explicitly sets the precedence of the operators.
      *
-     * This is a necessary step to build the Abstract Syntax Tree.
+     * This is a necessary step to build the expression tree.
      *
      * @param {[]} expression
      * @returns {[]}
      */
-    setPrecedence(expression) {
+    setPrecedenceInExpression(expression) {
+
+        if (!expression || expression.constructor !== Array) {
+            return expression;
+        }
         
         let operatorIndex = 0;
         
@@ -254,12 +258,16 @@ module.exports = class GenericSqlParser {
                 }
                 tokenIndex++;
             }
-            
         }
         
         return this.constructor.reduceArray(expression);
     }
 
+    /**
+     * 
+     * @param {String} operator
+     * @returns {function|null}
+     */
     operatorType(operator) {
         
         if (!(typeof operator === 'string' || operator instanceof String)) {
@@ -287,7 +295,7 @@ module.exports = class GenericSqlParser {
             precedenceIndex++;
         }
 
-        return found ? found : false;
+        return found ? found : null;
     }
 
     /**
@@ -343,22 +351,9 @@ module.exports = class GenericSqlParser {
     }
 
     /**
-     * Defines an operator of between type.
+     * Defines an operator of IN type.
      *
-     * The BETWEEN operator is unique in where its operands are, so it requires defining a new type,
-     * which is a function that returns the indexes of the operator's three operands.
-     *
-     * @returns {function()}
-     * @constructor
-     */
-    static get OPERATOR_TYPE_TERNARY_BETWEEN() {
-        return OPERATOR_TYPE_TERNARY_BETWEEN;
-    }
-
-    /**
-     * Defines an operator of between type.
-     *
-     * The IN operator is unique in that the second argument must be an array.
+     * The IN operator is unique in that the second argument must be an array of literals.
      * This means that the token in second index should not be parsed in any way. Using the LiteralIndex class, this is possible.
      * @returns {function()}
      * @constructor
@@ -375,12 +370,33 @@ module.exports = class GenericSqlParser {
      * @returns {LiteralIndex}
      * @constructor
      */
+
+    /**
+     * Defines an operator of BETWEEN type.
+     *
+     * The BETWEEN operator is unique in where its operands are, so it requires defining a new type,
+     * which is a function that returns the indexes of the operator's three operands.
+     *
+     * @returns {function()}
+     * @constructor
+     */
+    static get OPERATOR_TYPE_TERNARY_BETWEEN() {
+        return OPERATOR_TYPE_TERNARY_BETWEEN;
+    }
+
+    /**
+     * A subclass of Number that can be used to indicate that this particular expression should not be evaluated.
+     * This is useful when your expression is an array of literals.
+     * 
+     * @returns {LiteralIndex}
+     * @constructor
+     */
     static get LiteralIndex() {
         return LiteralIndex;
     }
 
 };
 
-const parser = new module.exports();
-const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
-console.log(JSON.stringify(parsed));
+//const parser = new module.exports();
+//const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
+//console.log(JSON.stringify(parsed));
