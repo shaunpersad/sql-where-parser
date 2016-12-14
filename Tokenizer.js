@@ -29,6 +29,7 @@ module.exports = class Tokenizer {
         this.currentToken = '';
         this.modeStack = [MODE_NONE];
         this.stack = [];
+        this.iteratee = () => {};
     }
 
     get currentMode() {
@@ -65,11 +66,15 @@ module.exports = class Tokenizer {
                     break;
             }
         }
-
+        this.iteratee(token);
         this.stack.push(token);
     }
     
-    tokenize(str) {
+    tokenize(str, iteratee) {
+        
+        if (iteratee) {
+            this.iteratee = iteratee;
+        }
         
         let index = 0;
         while(index < str.length) {
