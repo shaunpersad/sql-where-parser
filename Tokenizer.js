@@ -82,38 +82,23 @@ module.exports = class Tokenizer {
             this.consume(str.charAt(index++));
         }
         
+        while (this.currentMode !== MODE_NONE) {
+            this.completeMode();
+            if (this.currentToken) {
+                this.push(this.currentToken);
+                this.currentToken = '';   
+            }
+        }
+        
         return this.stack;
     }
-
-
+    
     consume(chr) {
 
         this[this.currentMode](chr);
         this.previousChr = chr;
     }
-
-    checkTokenEnd(pushes) {
-        if (!pushes) {
-            pushes = [];
-        }
-
-        const lastChr = this.currentToken.charAt(this.currentToken.length - 1);
-        if (this.toTokenize.indexOf(lastChr) === -1) {
-            return pushes;
-        }
-
-        pushes.push(lastChr);
-        this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
-        return this.checkTokenEnd(pushes);
-    }
-
-    handleMultiplePushes(pushes) {
-
-        for (let index = 0; index < pushes.length; index++) {
-            this.push(pushes[index]);
-        }
-    }
-
+    
     [MODE_NONE](chr) {
 
         if (this.toTokenize.indexOf(chr) !== -1) {

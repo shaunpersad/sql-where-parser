@@ -1,47 +1,47 @@
 "use strict";
 const Tokenizer = require('./Tokenizer');
 
-const OPERATOR_TYPE_UNARY = (index, tokens) => {
-    const operator = tokens[index];
-    const operand = tokens[index + 1];
+const OPERATOR_TYPE_UNARY = (indexOfOperatorInExpression, tokens) => {
+    const operator = tokens[indexOfOperatorInExpression];
+    const operand = tokens[indexOfOperatorInExpression + 1];
     if (operand !== undefined) {
-        return [index + 1];
+        return [indexOfOperatorInExpression + 1];
     }
     throw new SyntaxError(`${operator.toUpperCase()}" requires an operand.`);
 };
 
-const OPERATOR_TYPE_BINARY = (index, tokens) => {
+const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, tokens) => {
 
-    const operator = tokens[index];
-    const operand1 = tokens[index - 1];
-    const operand2 = tokens[index + 1];
+    const operator = tokens[indexOfOperatorInExpression];
+    const operand1 = tokens[indexOfOperatorInExpression - 1];
+    const operand2 = tokens[indexOfOperatorInExpression + 1];
     
     if (operand1 !== undefined && operand2 !== undefined) {
-        return [index - 1, index + 1];
+        return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1];
     }
 
     throw new SyntaxError(`${operator.toUpperCase()} requires two operands.`);
 };
 
-const OPERATOR_TYPE_TERNARY_BETWEEN = (index, tokens) => {
+const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, tokens) => {
 
-    const AND = tokens[index + 2];
-    const min = tokens[index + 1];
-    const max =  tokens[index + 3];
+    const AND = tokens[indexOfOperatorInExpression + 2];
+    const min = tokens[indexOfOperatorInExpression + 1];
+    const max =  tokens[indexOfOperatorInExpression + 3];
 
     if ((typeof AND === 'string' || AND instanceof String) && AND.toUpperCase() === 'AND' && min !== undefined && max !== undefined) {
-        return [index - 1, index + 1, index + 3];
+        return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1, indexOfOperatorInExpression + 3];
     }
     throw new SyntaxError('"BETWEEN" syntax is "BETWEEN {min} AND {max}"')
 };
 
-const OPERATOR_TYPE_BINARY_IN = (index, tokens) => {
+const OPERATOR_TYPE_BINARY_IN = (indexOfOperatorInExpression, tokens) => {
 
-    const operand1 = tokens[index - 1];
-    const operand2 = tokens[index + 1];
+    const operand1 = tokens[indexOfOperatorInExpression - 1];
+    const operand2 = tokens[indexOfOperatorInExpression + 1];
 
     if (operand1 !== undefined && operand2 !== undefined && operand2.constructor === Array) {
-        return [index - 1, new LiteralIndex(index + 1)];
+        return [indexOfOperatorInExpression - 1, new LiteralIndex(indexOfOperatorInExpression + 1)];
     }
 
     throw new SyntaxError('"IN" syntax is "IN({array})"')
@@ -301,8 +301,8 @@ module.exports = class GenericSqlParser {
     /**
      * Tokenizes an SQL-like string.
      *
-     * @param {string} sql
-     * @param {function} iteratee
+     * @param {string} sql - the SQL-like string to tokenize.
+     * @param {function} [iteratee] - an optional function that will be called for each token.
      * @returns {[]}
      */
     static tokenize(sql, iteratee) {
