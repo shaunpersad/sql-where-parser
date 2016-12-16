@@ -136,7 +136,7 @@ describe('SqlWhereParser', function() {
             // </div>
         });
 
-        it(`The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands.`, function() {
+        it(`The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands`, function() {
 
             //     "expressionTree": [
             //         "AND",
@@ -527,7 +527,7 @@ describe('SqlWhereParser', function() {
 
         describe('#operatorType(String: operator):Function|null', function() {
 
-            it("returns the operator's type (unary, binary, etc.).", function() {
+            it("returns the operator's type (unary, binary, etc.)", function() {
 
                 parser.operators.forEach((operators) => {
 
@@ -750,7 +750,7 @@ describe('SqlWhereParser', function() {
                 }
             });
 
-            it("provides a LiteralIndex as the array operand's index, to alert the parser that this operand is a literal and requires no further parsing.", function() {
+            it("provides a LiteralIndex as the array operand's index, to alert the parser that this operand is a literal and requires no further parsing", function() {
 
                 const operand1 = 'field';
                 const operand2 = [1, 2, 3];
