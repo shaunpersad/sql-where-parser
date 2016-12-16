@@ -1,6 +1,6 @@
 {
   "name": "sql-where-parser",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Parses an SQL-like WHERE string into various forms.",
   "main": "SqlWhereParser.js",
   "scripts": {
@@ -17,7 +17,10 @@
     "AST",
     "abstract",
     "syntax",
-    "tree"
+    "tree",
+    "convert",
+    "mongo",
+    "elasticsearch"
   ],
   "author": "Shaun Persad <shaunpersad@gmail.com> (http://inspirationjs.io)",
   "license": "MIT",

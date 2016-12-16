@@ -136,7 +136,7 @@ describe('SqlWhereParser', function() {
             // </div>
         });
 
-        it(`The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands`, function() {
+        it(`The "expressionTree" result is an array where the first element is the operator, and the second element is an array of that operator's operands`, function() {
 
             //     "expressionTree": [
             //         "AND",
