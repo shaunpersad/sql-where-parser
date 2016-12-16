@@ -1,25 +1,3 @@
-# TOC
-   - [SqlWhereParser](#sqlwhereparser)
-     - [What is it?](#sqlwhereparser-what-is-it)
-     - [Installation](#sqlwhereparser-installation)
-     - [API](#sqlwhereparser-api)
-       - [#parse(String: sql):Object](#sqlwhereparser-api-parsestring-sqlobject)
-         - [results.tokens](#sqlwhereparser-api-parsestring-sqlobject-resultstokens)
-         - [results.expression](#sqlwhereparser-api-parsestring-sqlobject-resultsexpression)
-         - [results.expressionDisplay](#sqlwhereparser-api-parsestring-sqlobject-resultsexpressiondisplay)
-         - [results.expressionTree](#sqlwhereparser-api-parsestring-sqlobject-resultsexpressiontree)
-       - [#expressionTreeFromExpression(Array|*: expression):Array](#sqlwhereparser-api-expressiontreefromexpressionarray-expressionarray)
-       - [#setPrecedenceInExpression(Array|*: expression):Array](#sqlwhereparser-api-setprecedenceinexpressionarray-expressionarray)
-       - [#operatorType(String: operator):Function|null](#sqlwhereparser-api-operatortypestring-operatorfunctionnull)
-       - [.tokenize(String: sql[, Function: iteratee]):Array](#sqlwhereparser-api-tokenizestring-sql-function-iterateearray)
-       - [.reduceArray(Array: arr):Array](#sqlwhereparser-api-reducearrayarray-arrarray)
-       - [.OPERATOR_TYPE_UNARY](#sqlwhereparser-api-operator_type_unary)
-       - [.OPERATOR_TYPE_BINARY](#sqlwhereparser-api-operator_type_binary)
-       - [.OPERATOR_TYPE_BINARY_IN](#sqlwhereparser-api-operator_type_binary_in)
-       - [.OPERATOR_TYPE_TERNARY_BETWEEN](#sqlwhereparser-api-operator_type_ternary_between)
-       - [.LiteralIndex](#sqlwhereparser-api-literalindex)
-<a name=""></a>
- 
 <a name="sqlwhereparser"></a>
 # SqlWhereParser
 <a name="sqlwhereparser-what-is-it"></a>
@@ -816,4 +794,4 @@ try {
 if (!passed) {
     throw new Error('Did not throw a syntax error');
 }
-``
+```
