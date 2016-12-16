@@ -1,8 +1,8 @@
 "use strict";
 
 const should = require('should');
-const GenericSqlParser = require('../GenericSqlParser');
-const parser = new GenericSqlParser();
+const SqlWhereParser = require('../SqlWhereParser');
+const parser = new SqlWhereParser();
 
 function equals(obj1, obj2) {
     
@@ -11,228 +11,236 @@ function equals(obj1, obj2) {
     }
 }
 
-describe('GenericSqlParser', function() {
+describe('SqlWhereParser', function() {
 
     describe('What is it?', function() {
 
-        describe('GenericSqlParser parses the WHERE portion of an SQL string into many forms.', function() {
+        it('SqlWhereParser parses the WHERE portion of an SQL string into many forms', function() {
 
-            it('Example:', function() {
+            const sql = 'job = "developer" AND hasJob = true';
+            const parser = new SqlWhereParser();
+            const parsed = parser.parse(sql);
 
-                const sql = 'job = "developer" AND hasJob = true';
-                const parser = new GenericSqlParser();
-                const parsed = parser.parse(sql);
+            // "parsed" is an object that looks like:
+            // {
+            //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
+            //     "expression": [
+            //         [
+            //             "job",
+            //             "=",
+            //             "developer"
+            //         ],
+            //         "AND",
+            //         [
+            //             "hasJob",
+            //             "=",
+            //             true
+            //         ]
+            //     ],
+            //     "expressionDisplay": [
+            //         "job",
+            //         "=",
+            //         "developer",
+            //         "AND",
+            //         "hasJob",
+            //         "=",
+            //         true
+            //     ],
+            //     "expressionTree": [
+            //         "AND",
+            //         [
+            //             [
+            //                 "=",
+            //                 [
+            //                     "job",
+            //                     "developer"
+            //                 ]
+            //             ],
+            //             [
+            //                 "=",
+            //                 [
+            //                     "hasJob",
+            //                     true
+            //                 ]
+            //             ]
+            //         ]
+            //     ]
+            // };
+        });
 
-                // "parsed" is an object that looks like:
-                // {
-                //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
-                //     "expression": [
-                //         [
-                //             "job",
-                //             "=",
-                //             "developer"
-                //         ],
-                //         "AND",
-                //         [
-                //             "hasJob",
-                //             "=",
-                //             true
-                //         ]
-                //     ],
-                //     "expressionDisplay": [
-                //         "job",
-                //         "=",
-                //         "developer",
-                //         "AND",
-                //         "hasJob",
-                //         "=",
-                //         true
-                //     ],
-                //     "expressionTree": [
-                //         "AND",
-                //         [
-                //             [
-                //                 "=",
-                //                 [
-                //                     "job",
-                //                     "developer"
-                //                 ]
-                //             ],
-                //             [
-                //                 "=",
-                //                 [
-                //                     "hasJob",
-                //                     true
-                //                 ]
-                //             ]
-                //         ]
-                //     ]
-                // };
-            });
+        it('The "expression" result is an array where each sub-expression is explicitly grouped based on order of operations', function() {
+            //     "expression": [
+            //         [
+            //             "job",
+            //             "=",
+            //             "developer"
+            //         ],
+            //         "AND",
+            //         [
+            //             "hasJob",
+            //             "=",
+            //             true
+            //         ]
+            //     ],
+        });
 
-            it('The "expression" result is an array where each sub-expression is explicitly grouped based on order of operations.', function() {
-                //     "expression": [
-                //         [
-                //             "job",
-                //             "=",
-                //             "developer"
-                //         ],
-                //         "AND",
-                //         [
-                //             "hasJob",
-                //             "=",
-                //             true
-                //         ]
-                //     ],
-            });
+        it('The "expressionDisplay" result uses only the original groupings, except for unnecessary groups', function() {
+            //     "expressionDisplay": [
+            //         "job",
+            //         "=",
+            //         "developer",
+            //         "AND",
+            //         "hasJob",
+            //         "=",
+            //         true
+            //     ],
+        });
 
-            it('The "expressionDisplay" result uses only the original groupings, except for unnecessary groups.', function() {
-                //     "expressionDisplay": [
-                //         "job",
-                //         "=",
-                //         "developer",
-                //         "AND",
-                //         "hasJob",
-                //         "=",
-                //         true
-                //     ],
-            });
+        it('"expressionDisplay" is useful for mapping to the front-end, e.g. as HTML', function() {
 
-            it('"expressionDisplay" is useful for mapping to the front-end, e.g. as HTML', function() {
+            const sql = 'job = "developer" AND (hasJob = true OR age > null)';
+            const parser = new SqlWhereParser();
+            const parsed = parser.parse(sql);
 
-                const sql = 'job = "developer" AND (hasJob = true OR age > null)';
-                const parser = new GenericSqlParser();
-                const parsed = parser.parse(sql);
-                
-                const toHtml = (expression) => {
-                    
-                    if (!expression || !(expression.constructor === Array)) {
-                        
-                        const isOperator = parser.operatorType(expression);
-                        if (isOperator) {
-                            return `<strong class="operator">${expression}</strong>`;
+            const toHtml = (expression) => {
 
+                if (!expression || !(expression.constructor === Array)) {
+
+                    const isOperator = parser.operatorType(expression);
+                    if (isOperator) {
+                        return `<strong class="operator">${expression}</strong>`;
+
+                    }
+                    return `<span class="operand">${expression}</span>`;
+                }
+
+                const html = expression.map((subExpression) => {
+
+                    return toHtml(subExpression);
+                });
+
+                return `<div class="expression">${html.join('')}</div>`;
+            };
+
+            const html = toHtml(parsed.expressionDisplay);
+
+            // "html" is now a string that looks like:
+            // <div class="expression">
+            //   <span class="operand">job</span><strong class="operator">=</strong><span class="operand">developer</span>
+            //   <strong class="operator">AND</strong>
+            //     <div class="expression">
+            //       <span class="operand">hasJob</span><strong class="operator">=</strong><span class="operand">true</span>
+            //       <strong class="operator">OR</strong>
+            //       <span class="operand">age</span><strong class="operator">></strong><span class="operand">null</span>
+            //     </div>
+            // </div>
+        });
+
+        it(`The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands.`, function() {
+
+            //     "expressionTree": [
+            //         "AND",
+            //         [
+            //             [
+            //                 "=",
+            //                 [
+            //                     "job",
+            //                     "developer"
+            //                 ]
+            //             ],
+            //             [
+            //                 "=",
+            //                 [
+            //                     "hasJob",
+            //                     true
+            //                 ]
+            //             ]
+            //         ]
+            //     ]
+        });
+
+        it('"expressionTree" can be used to convert to other query languages, such as MongoDB or Elasticsearch', function() {
+
+            const sql = 'job = "developer" AND (hasJob = true OR age > 17)';
+            const parser = new SqlWhereParser();
+            const parsed = parser.parse(sql);
+
+            const toMongo = (expression) => {
+
+                if (!expression || !(expression.constructor === Array)) {
+
+                    return expression;
+                }
+
+                const operator = expression[0];
+                const operands = expression[1];
+
+                return map[operator](operands);
+            };
+
+            const map = {
+                '=': (operands) => {
+                    return {
+                        [operands[0]]: toMongo(operands[1])
+                    };
+                },
+                '>': (operands) => {
+                    return {
+                        [operands[0]]: {
+                            $gt: toMongo(operands[1])
                         }
-                        return `<span class="operand">${expression}</span>`;
-                    }
-                    
-                    const html = expression.map((subExpression) => {
-                        
-                        return toHtml(subExpression);
-                    });
-                    
-                    return `<div class="expression">${html.join('')}</div>`;
-                };
-                
-                const html = toHtml(parsed.expressionDisplay);
+                    };
+                },
+                'AND': (operands) => {
+                    return {
+                        $and : operands.map(toMongo)
+                    };
+                },
+                'OR': (operands) => {
+                    return {
+                        $or: operands.map(toMongo)
+                    };
+                }
+            };
 
-                // "html" is now a string that looks like:
-                // <div class="expression">
-                //   <span class="operand">job</span><strong class="operator">=</strong><span class="operand">developer</span>
-                //   <strong class="operator">AND</strong>
-                //     <div class="expression">
-                //       <span class="operand">hasJob</span><strong class="operator">=</strong><span class="operand">true</span>
-                //       <strong class="operator">OR</strong>
-                //       <span class="operand">age</span><strong class="operator">></strong><span class="operand">null</span>
-                //     </div>
-                // </div>
-            });
+            const mongo = toMongo(parsed.expressionTree);
 
-            it(`The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands.`, function() {
+            // "mongo" is now an object that looks like:
+            // {
+            //   "$and": [
+            //     {
+            //       "job": "developer"
+            //     },
+            //     {
+            //       "$or": [
+            //         {
+            //           "hasJob": true
+            //         },
+            //         {
+            //           "age": {
+            //             "$gt": 17
+            //           }
+            //         }
+            //       ]
+            //     }
+            //   ]
+            // }
+        });
 
-                //     "expressionTree": [
-                //         "AND",
-                //         [
-                //             [
-                //                 "=",
-                //                 [
-                //                     "job",
-                //                     "developer"
-                //                 ]
-                //             ],
-                //             [
-                //                 "=",
-                //                 [
-                //                     "hasJob",
-                //                     true
-                //                 ]
-                //             ]
-                //         ]
-                //     ]
-            });
+        it('If you wish to combine the tokens yourself, the "tokens" result is a flat array of the tokens as found in the original SQL string', function() {
 
-            it('"expressionTree" can be used to convert to other query languages, such as MongoDB or Elasticsearch.', function() {
+            //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
+        });
 
-                const sql = 'job = "developer" AND (hasJob = true OR age > 17)';
-                const parser = new GenericSqlParser();
-                const parsed = parser.parse(sql);
+        describe('SqlWhereParser parses the WHERE portion of an SQL string into many forms', function() {
 
-                const toMongo = (expression) => {
+        });
+    });
 
-                    if (!expression || !(expression.constructor === Array)) {
+    describe('Installation', function() {
 
-                        return expression;
-                    }
-
-                    const operator = expression[0];
-                    const operands = expression[1];
-
-                    return map[operator](operands);
-                };
-
-                const map = {
-                    '=': (operands) => {
-                        return {
-                            [operands[0]]: toMongo(operands[1])
-                        };
-                    },
-                    '>': (operands) => {
-                        return {
-                            [operands[0]]: {
-                                $gt: toMongo(operands[1])
-                            }
-                        };
-                    },
-                    'AND': (operands) => {
-                        return {
-                            $and : operands.map(toMongo)
-                        };
-                    },
-                    'OR': (operands) => {
-                        return {
-                            $or: operands.map(toMongo)
-                        };
-                    }
-                };
-
-                const mongo = toMongo(parsed.expressionTree);
-
-                // "mongo" is now an object that looks like:
-                // {
-                //   "$and": [
-                //     {
-                //       "job": "developer"
-                //     },
-                //     {
-                //       "$or": [
-                //         {
-                //           "hasJob": true
-                //         },
-                //         {
-                //           "age": {
-                //             "$gt": 17
-                //           }
-                //         }
-                //       ]
-                //     }
-                //   ]
-                // }
-            });
-
-            it('If you wish to combine the tokens yourself, the "tokens" result is a flat array of the tokens as found in the original SQL string.', function() {
-
-                //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
-            });
+        it('`npm install sql-where-parser`', function() {
+            // or if in the browser: <script src="sql-where-parser/sql-where-parser.min.js"></script>
         });
     });
 
@@ -240,7 +248,7 @@ describe('GenericSqlParser', function() {
 
         describe('#parse(String: sql):Object', function() {
 
-            it('returns a results object with tokens, expression, expressionDisplay, and expressionTree properties.', function() {
+            it('returns a results object with tokens, expression, expressionDisplay, and expressionTree properties', function() {
 
                 const parsed = parser.parse('');
                 parsed.should.have.property('tokens').which.is.an.Array;
@@ -252,14 +260,14 @@ describe('GenericSqlParser', function() {
 
             describe('results.tokens', function() {
 
-                it('is an array containing the tokens of the SQL string (wrapped in parentheses).', function() {
+                it('is an array containing the tokens of the SQL string (wrapped in parentheses)', function() {
 
                     const results = parser.parse('name = shaun');
                     results.tokens.should.be.an.Array;
                     equals(results.tokens, ['(', 'name', '=', 'shaun', ')']);
                 });
 
-                it('treats anything wrapped in single-quotes, double-quotes, and ticks as a single token.', function() {
+                it('treats anything wrapped in single-quotes, double-quotes, and ticks as a single token', function() {
 
                     const results = parser.parse(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
                     results.tokens.should.be.an.Array;
@@ -269,28 +277,28 @@ describe('GenericSqlParser', function() {
 
             describe('results.expression', function() {
 
-                it('is the parsed SQL as an array.', function() {
+                it('is the parsed SQL as an array', function() {
 
                     const parsed = parser.parse('name = shaun');
 
                     equals(parsed.expression, ['name', '=', 'shaun']);
                 });
 
-                it('does not care about spaces.', function() {
+                it('does not care about spaces', function() {
 
                     const parsed = parser.parse('  name  =  shaun     ');
 
                     equals(parsed.expression, ['name', '=', 'shaun']);
                 });
 
-                it('strips out unnecessary parentheses.', function() {
+                it('strips out unnecessary parentheses', function() {
 
                     const parsed = parser.parse('(((name) = ((shaun))))');
 
                     equals(parsed.expression, ['name', '=', 'shaun']);
                 });
 
-                it('adds explicit groupings defined by the order of operations.', function() {
+                it('adds explicit groupings defined by the order of operations', function() {
 
                     const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
 
@@ -364,7 +372,7 @@ describe('GenericSqlParser', function() {
 
             describe('results.expressionDisplay', function() {
 
-                it('uses only the original groupings, except for unnecessary groups.', function() {
+                it('uses only the original groupings, except for unnecessary groups', function() {
 
                     const parsed = parser.parse('(name = shaun AND job = developer AND ((gender = male OR type = person AND location IN (NY, America) AND hobby = coding)))');
 
@@ -403,7 +411,7 @@ describe('GenericSqlParser', function() {
 
             describe('results.expressionTree', function() {
 
-                it('converts the expression into a tree.', function() {
+                it('converts the expression into a tree', function() {
 
                     const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
 
@@ -500,7 +508,7 @@ describe('GenericSqlParser', function() {
 
         describe('#expressionTreeFromExpression(Array|*: expression):Array', function() {
 
-            it('returns a tree representation of the supplied expression array.', function() {
+            it('returns a tree representation of the supplied expression array', function() {
 
                 const syntaxTree = parser.expressionTreeFromExpression([]);
                 syntaxTree.should.be.an.Array;
@@ -509,7 +517,7 @@ describe('GenericSqlParser', function() {
 
         describe('#setPrecedenceInExpression(Array|*: expression):Array', function() {
 
-            it('takes an array of tokens and groups them explicitly, based on the order of operations.', function() {
+            it('takes an array of tokens and groups them explicitly, based on the order of operations', function() {
 
                 const orderedTokens = parser.setPrecedenceInExpression(['a1', '=', 'a2', 'OR', 'b', 'AND', 'c', 'OR', 'd', 'LIKE', 'e', 'AND', 'f', '<', 'g']);
 
@@ -535,24 +543,24 @@ describe('GenericSqlParser', function() {
 
         describe('.tokenize(String: sql[, Function: iteratee]):Array', function() {
 
-            it('returns an array containing the tokens of the SQL string.', function() {
+            it('returns an array containing the tokens of the SQL string', function() {
 
-                const tokens = GenericSqlParser.tokenize('name = shaun');
+                const tokens = SqlWhereParser.tokenize('name = shaun');
                 tokens.should.be.an.Array;
                 equals(tokens, ['name', '=', 'shaun']);
             });
 
-            it('treats anything wrapped in single-quotes, double-quotes, and ticks as a single token.', function() {
+            it('treats anything wrapped in single-quotes, double-quotes, and ticks as a single token', function() {
 
-                const tokens = GenericSqlParser.tokenize(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
+                const tokens = SqlWhereParser.tokenize(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
                 tokens.should.be.an.Array;
                 equals(tokens, ['(', 'name', '=', 'shaun', ')', 'and', 'a', '=', 'b(', 'or', '(', 'c', 'OR', 'd e, f', ')']);
             });
 
-            it('can be supplied with an optional iteratee function, which is called when each token is ready.', function() {
+            it('can be supplied with an optional iteratee function, which is called when each token is ready', function() {
 
                 const collectedTokens = [];
-                const tokens = GenericSqlParser.tokenize('name = shaun', (token) => {
+                const tokens = SqlWhereParser.tokenize('name = shaun', (token) => {
                     collectedTokens.push(token);
                 });
                 collectedTokens.should.be.an.Array;
@@ -564,10 +572,10 @@ describe('GenericSqlParser', function() {
 
         describe('.reduceArray(Array: arr):Array', function() {
 
-            it('reduces unnecessarily nested arrays.', function() {
+            it('reduces unnecessarily nested arrays', function() {
 
                 const arr = [[['hey', 'hi']]];
-                const reducedArr = GenericSqlParser.reduceArray(arr);
+                const reducedArr = SqlWhereParser.reduceArray(arr);
                 let passed = true;
                 try {
                     equals(arr, reducedArr);
@@ -576,28 +584,28 @@ describe('GenericSqlParser', function() {
                     equals(reducedArr, ['hey', 'hi']);
                 }
                 if (!passed) {
-                    throw new Error('Did not reduce the array.');
+                    throw new Error('Did not reduce the array');
                 }
             });
         });
 
         describe('.OPERATOR_TYPE_UNARY', function() {
 
-            it('is a function(indexOfOperatorInExpression, expression) that returns an array containing the index of where the operand is in the expression.', function() {
+            it('is a function(indexOfOperatorInExpression, expression) that returns an array containing the index of where the operand is in the expression', function() {
 
                 const operand = ['a', 'AND', 'b'];
                 const expression = ['NOT', operand];
 
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_UNARY;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_UNARY;
                 const indexes = getIndexes(0, expression);
                 const operandIndex = indexes[0];
                 expression[operandIndex].should.equal(operand);
             });
 
-            it('throws a syntax error if the operand is not found in the expression.', function() {
+            it('throws a syntax error if the operand is not found in the expression', function() {
 
                 const expression = ['NOT'];
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_UNARY;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_UNARY;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);
@@ -613,14 +621,14 @@ describe('GenericSqlParser', function() {
 
         describe('.OPERATOR_TYPE_BINARY', function() {
 
-            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.', function() {
+            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression', function() {
 
                 const operand1 = ['a', 'AND', 'b'];
                 const operand2 = ['c', 'OR', 'd'];
 
                 const expression = [operand1, 'AND', operand2];
 
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY;
                 const indexes = getIndexes(1, expression);
                 const operand1Index = indexes[0];
                 const operand2Index = indexes[1];
@@ -629,10 +637,10 @@ describe('GenericSqlParser', function() {
                 expression[operand2Index].should.equal(operand2);
             });
 
-            it('throws a syntax error if any of the operands are not found in the expression.', function() {
+            it('throws a syntax error if any of the operands are not found in the expression', function() {
 
                 let expression = ['AND'];
-                let getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY;
+                let getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);
@@ -671,14 +679,14 @@ describe('GenericSqlParser', function() {
 
         describe('.OPERATOR_TYPE_BINARY_IN', function() {
 
-            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.', function() {
+            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression', function() {
 
                 const operand1 = 'field';
                 const operand2 = [1, 2, 3];
 
                 const expression = [operand1, 'IN', operand2];
 
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY_IN;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
                 const indexes = getIndexes(1, expression);
                 const operand1Index = indexes[0];
                 const operand2Index = indexes[1];
@@ -687,10 +695,10 @@ describe('GenericSqlParser', function() {
                 expression[operand2Index].should.equal(operand2);
             });
 
-            it('throws a syntax error if any of the operands are not found in the expression.', function() {
+            it('throws a syntax error if any of the operands are not found in the expression', function() {
 
                 let expression = ['IN'];
-                let getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY_IN;
+                let getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);
@@ -726,10 +734,10 @@ describe('GenericSqlParser', function() {
                 }
             });
 
-            it('throws a syntax error if the second operand is not an array.', function() {
+            it('throws a syntax error if the second operand is not an array', function() {
 
                 const expression = ['field', 'IN', 'value'];
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY_IN;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);
@@ -749,7 +757,7 @@ describe('GenericSqlParser', function() {
 
                 const expression = [operand1, 'IN', operand2];
 
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_BINARY_IN;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
                 const indexes = getIndexes(1, expression);
                 const operand1Index = indexes[0];
                 const operand2Index = indexes[1];
@@ -757,13 +765,13 @@ describe('GenericSqlParser', function() {
                 expression[operand1Index].should.equal(operand1);
                 expression[operand2Index].should.equal(operand2);
 
-                operand2Index.constructor.should.equal(GenericSqlParser.LiteralIndex);
+                operand2Index.constructor.should.equal(SqlWhereParser.LiteralIndex);
             });
         });
 
         describe('.OPERATOR_TYPE_TERNARY_BETWEEN', function() {
 
-            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.', function() {
+            it('is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression', function() {
 
                 const operand1 = 'field';
                 const operand2 = 1;
@@ -771,7 +779,7 @@ describe('GenericSqlParser', function() {
 
                 const expression = [operand1, 'BETWEEN', operand2, 'AND', operand3];
 
-                const getIndexes = GenericSqlParser.OPERATOR_TYPE_TERNARY_BETWEEN;
+                const getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
                 const indexes = getIndexes(1, expression);
                 const operand1Index = indexes[0];
                 const operand2Index = indexes[1];
@@ -782,10 +790,10 @@ describe('GenericSqlParser', function() {
                 expression[operand3Index].should.equal(operand3);
             });
 
-            it('throws a syntax error if any of the operands are not found in the expression.', function() {
+            it('throws a syntax error if any of the operands are not found in the expression', function() {
 
                 let expression = ['BETWEEN'];
-                let getIndexes = GenericSqlParser.OPERATOR_TYPE_TERNARY_BETWEEN;
+                let getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);
@@ -821,10 +829,10 @@ describe('GenericSqlParser', function() {
                 }
             });
 
-            it('throws a syntax error if the BETWEEN does not include an AND in between the {min} and {max}.', function() {
+            it('throws a syntax error if the BETWEEN does not include an AND in between the {min} and {max}', function() {
 
                 let expression = ['a', 'BETWEEN', 1, 'OR', 2];
-                let getIndexes = GenericSqlParser.OPERATOR_TYPE_TERNARY_BETWEEN;
+                let getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
                 let passed = true;
                 try {
                     const indexes = getIndexes(0, expression);

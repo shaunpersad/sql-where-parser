@@ -53,7 +53,7 @@ const sortNumber = (a, b) => {
 
 class LiteralIndex extends Number {}
 
-module.exports = class GenericSqlParser {
+module.exports = class SqlWhereParser {
 
     constructor() {
 
@@ -65,7 +65,7 @@ module.exports = class GenericSqlParser {
         /**
          * Defines operator precedence.
          *
-         * To change this, simply subclass GenericSqlParser.
+         * To change this, simply subclass SqlWhereParser.
          *
          * @type {*[]}
          */

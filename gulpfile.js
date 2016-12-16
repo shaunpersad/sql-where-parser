@@ -8,13 +8,13 @@ var uglify = require('gulp-uglify');
 gulp.task('browserify', function() {
 
     browserify({
-        entries: './GenericSqlParser.js',
+        entries: './SqlWhereParser.js',
         debug: true,
-        standalone: 'GenericSqlParser'
+        standalone: 'SqlWhereParser'
     })
         .transform(babelify, {presets: ['es2015']})
         .bundle()
-        .pipe(source('browser.js'))
+        .pipe(source('sql-where-parser.min.js'))
         .pipe(buffer())
         .pipe(uglify())
         .pipe(gulp.dest('./'));
@@ -22,7 +22,7 @@ gulp.task('browserify', function() {
 });
 
 gulp.task('watch', function() {
-    gulp.watch(['GenericSqlParser.js', 'ReadableCharacters.js', 'Tokenizer.js', 'TokenizerAsync.js'], ['browserify']);
+    gulp.watch(['SqlWhereParser.js', 'Tokenizer.js'], ['browserify']);
 });
 
 gulp.task('default', ['browserify', 'watch']);

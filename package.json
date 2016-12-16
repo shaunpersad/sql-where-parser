@@ -2,7 +2,7 @@
   "name": "sql-where-parser",
   "version": "1.0.2",
   "description": "Parses an SQL-like WHERE string into various forms.",
-  "main": "GenericSqlParser.js",
+  "main": "SqlWhereParser.js",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha --recursive --reporter markdown"
   },
