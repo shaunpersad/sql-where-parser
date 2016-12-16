@@ -1,20 +1,20 @@
 "use strict";
 const Tokenizer = require('./Tokenizer');
 
-const OPERATOR_TYPE_UNARY = (indexOfOperatorInExpression, tokens) => {
-    const operator = tokens[indexOfOperatorInExpression];
-    const operand = tokens[indexOfOperatorInExpression + 1];
+const OPERATOR_TYPE_UNARY = (indexOfOperatorInExpression, expression) => {
+    const operator = expression[indexOfOperatorInExpression];
+    const operand = expression[indexOfOperatorInExpression + 1];
     if (operand !== undefined) {
         return [indexOfOperatorInExpression + 1];
     }
     throw new SyntaxError(`${operator.toUpperCase()}" requires an operand.`);
 };
 
-const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, tokens) => {
+const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, expression) => {
 
-    const operator = tokens[indexOfOperatorInExpression];
-    const operand1 = tokens[indexOfOperatorInExpression - 1];
-    const operand2 = tokens[indexOfOperatorInExpression + 1];
+    const operator = expression[indexOfOperatorInExpression];
+    const operand1 = expression[indexOfOperatorInExpression - 1];
+    const operand2 = expression[indexOfOperatorInExpression + 1];
     
     if (operand1 !== undefined && operand2 !== undefined) {
         return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1];
@@ -23,11 +23,11 @@ const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, tokens) => {
     throw new SyntaxError(`${operator.toUpperCase()} requires two operands.`);
 };
 
-const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, tokens) => {
+const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, expression) => {
 
-    const AND = tokens[indexOfOperatorInExpression + 2];
-    const min = tokens[indexOfOperatorInExpression + 1];
-    const max =  tokens[indexOfOperatorInExpression + 3];
+    const AND = expression[indexOfOperatorInExpression + 2];
+    const min = expression[indexOfOperatorInExpression + 1];
+    const max =  expression[indexOfOperatorInExpression + 3];
 
     if ((typeof AND === 'string' || AND instanceof String) && AND.toUpperCase() === 'AND' && min !== undefined && max !== undefined) {
         return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1, indexOfOperatorInExpression + 3];
@@ -35,10 +35,10 @@ const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, tokens) => {
     throw new SyntaxError('"BETWEEN" syntax is "BETWEEN {min} AND {max}"')
 };
 
-const OPERATOR_TYPE_BINARY_IN = (indexOfOperatorInExpression, tokens) => {
+const OPERATOR_TYPE_BINARY_IN = (indexOfOperatorInExpression, expression) => {
 
-    const operand1 = tokens[indexOfOperatorInExpression - 1];
-    const operand2 = tokens[indexOfOperatorInExpression + 1];
+    const operand1 = expression[indexOfOperatorInExpression - 1];
+    const operand2 = expression[indexOfOperatorInExpression + 1];
 
     if (operand1 !== undefined && operand2 !== undefined && operand2.constructor === Array) {
         return [indexOfOperatorInExpression - 1, new LiteralIndex(indexOfOperatorInExpression + 1)];
@@ -103,16 +103,22 @@ module.exports = class SqlWhereParser {
                 'OR': BINARY
             }
         ];
+    }
+    
+    get operatorsFlattened() {
+        
+        if (!this._operatorsFlattened) {
+            this._operatorsFlattened = {};
 
-        this.operatorsFlattened = {};
+            let precedenceIndex = 0;
 
-        let precedenceIndex = 0;
+            while (precedenceIndex < this.operators.length) {
 
-        while (precedenceIndex < this.operators.length) {
-
-            const operators = this.operators[precedenceIndex++];
-            Object.assign(this.operatorsFlattened, operators);
+                const operators = this.operators[precedenceIndex++];
+                Object.assign(this._operatorsFlattened, operators);
+            }  
         }
+        return this._operatorsFlattened;
     }
 
     /**
@@ -122,7 +128,7 @@ module.exports = class SqlWhereParser {
      * tokens - the tokenized version of the SQL statement.
      * expression - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
      * expressionDisplay - the array form of the SQL statement, using only parentheses found in the original SQL. Useful for displaying in front-end.
-     * expressionTree - an array describing the SQL operations. Useful for converting to object-based query languages, like Mongo, or ES.
+     * expressionTree - an array describing the SQL expressions. Useful for converting to object-based query languages, like Mongo, or ES.
      *
      * @param {string} sql - An SQL-like string
      * @returns {{}} results
@@ -181,10 +187,10 @@ module.exports = class SqlWhereParser {
             return expression;
         }
 
-        let operation = [];
+        let expressionTree = [];
         let tokenIndex = 0;
         
-        while(!operation.length && tokenIndex < expression.length) {
+        while(!expressionTree.length && tokenIndex < expression.length) {
 
             const token = expression[tokenIndex];
 
@@ -208,13 +214,13 @@ module.exports = class SqlWhereParser {
                             operands.push(this.expressionTreeFromExpression(expression[operandIndex]));
                         }
                     }
-                    operation = [potentialOperator, operands];
+                    expressionTree = [potentialOperator, operands];
                 }
             }
             tokenIndex++;
         }
 
-        return operation;
+        return expressionTree;
     }
 
     /**
@@ -271,7 +277,7 @@ module.exports = class SqlWhereParser {
     operatorType(operator) {
         
         if (!(typeof operator === 'string' || operator instanceof String)) {
-            return false;
+            return null;
         }
 
         let precedenceIndex = 0;

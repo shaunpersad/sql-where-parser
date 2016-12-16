@@ -119,7 +119,7 @@ const html = toHtml(parsed.expressionDisplay);
 // </div>
 ```
 
-The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands..
+The "expressionTree" result is an array where the first element is the operator, and the second element is an array of that operator's operands.
 
 ```js
 //     "expressionTree": [
@@ -495,7 +495,7 @@ equals(orderedTokens, [[["a1","=","a2"],"OR",["b","AND","c"]],"OR",[["d","LIKE",
 
 <a name="sqlwhereparser-api-operatortypestring-operatorfunctionnull"></a>
 ### #operatorType(String: operator):Function|null
-returns the operator's type (unary, binary, etc.)..
+returns the operator's type (unary, binary, etc.).
 
 ```js
 parser.operators.forEach((operators) => {
@@ -503,6 +503,78 @@ parser.operators.forEach((operators) => {
         const type = operators[operator];
         parser.operatorType(operator).should.equal(type);
         parser.operatorType(operator).should.be.a.Function;
+    });
+});
+```
+
+<a name="sqlwhereparser-api-operatorsarray"></a>
+### #operators:Array
+is the list of supported operators, ordered by precedence, and grouped by the same level of precedence.
+
+```js
+parser.operators.should.be.an.Array;
+ 
+ const operatorGroups = parser.operators.map((operators) => {
+     return Object.keys(operators);
+ });
+ 
+ equals(operatorGroups, [
+     ['*', '/', '%'],
+     ['+', '-'],
+     ['=', '!=', '<', '>', '<=', '>='],
+     ['NOT'],
+     ['BETWEEN', 'IN', 'IS', 'LIKE'],
+     ['AND'],
+     ['OR']
+ ]);
+```
+
+can be added to or overwritten by subclassing SqlWhereParser into your own class.
+
+```js
+class MySqlWhereParser extends SqlWhereParser {
+    constructor() {
+        const BINARY = SqlWhereParser.OPERATOR_TYPE_BINARY;
+        super();
+        this.operators[2]['<=>'] = BINARY; // Equal (Safe to compare NULL values)
+        this.operators[2]['<>'] = BINARY; // Not Equal
+    }
+}
+const mysqlParser = new MySqlWhereParser();
+const parsed = mysqlParser.parse('a <> b OR b <=> c');
+equals(parsed.expressionTree, [
+    'OR',
+    [
+        [
+            '<>',
+            [
+                'a',
+                'b'
+            ]
+        ],
+        [
+            '<=>',
+            [
+                'b',
+                'c'
+            ]
+        ]
+    ]
+]);
+```
+
+<a name="sqlwhereparser-api-operatorsflattenedobject"></a>
+### #operatorsFlattened:Object
+is an object whose keys are the supported operators.
+
+```js
+const operatorsFlattened = parser.operatorsFlattened;
+                
+parser.operators.forEach((operators) => {
+    
+    Object.keys(operators).forEach((operator) => {
+       
+        operatorsFlattened[operator].should.equal(operators[operator]);
     });
 });
 ```
@@ -708,7 +780,7 @@ if (!passed) {
 }
 ```
 
-provides a LiteralIndex as the array operand's index, to alert the parser that this operand is a literal and requires no further parsing..
+provides a LiteralIndex as the array operand's index, to alert the parser that this operand is a literal and requires no further parsing.
 
 ```js
 const operand1 = 'field';

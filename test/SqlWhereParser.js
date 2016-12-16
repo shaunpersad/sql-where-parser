@@ -231,10 +231,6 @@ describe('SqlWhereParser', function() {
 
             //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
         });
-
-        describe('SqlWhereParser parses the WHERE portion of an SQL string into many forms', function() {
-
-        });
     });
 
     describe('Installation', function() {
@@ -243,6 +239,7 @@ describe('SqlWhereParser', function() {
             // or if in the browser: <script src="sql-where-parser/sql-where-parser.min.js"></script>
         });
     });
+
 
     describe('API', function() {
 
@@ -536,6 +533,82 @@ describe('SqlWhereParser', function() {
                         const type = operators[operator];
                         parser.operatorType(operator).should.equal(type);
                         parser.operatorType(operator).should.be.a.Function;
+                    });
+                });
+            });
+        });
+
+        describe('#operators:Array', function() {
+
+            it('is the list of supported operators, ordered by precedence, and grouped by the same level of precedence', function() {
+               
+                parser.operators.should.be.an.Array;
+                
+                const operatorGroups = parser.operators.map((operators) => {
+
+                    return Object.keys(operators);
+                });
+                
+                equals(operatorGroups, [
+                    ['*', '/', '%'],
+                    ['+', '-'],
+                    ['=', '!=', '<', '>', '<=', '>='],
+                    ['NOT'],
+                    ['BETWEEN', 'IN', 'IS', 'LIKE'],
+                    ['AND'],
+                    ['OR']
+                ]);
+            });
+
+            it('can be added to or overwritten by subclassing SqlWhereParser into your own class', function() {
+
+                class MySqlWhereParser extends SqlWhereParser {
+
+                    constructor() {
+
+                        const BINARY = SqlWhereParser.OPERATOR_TYPE_BINARY;
+                        super();
+                        this.operators[2]['<=>'] = BINARY; // Equal (Safe to compare NULL values)
+                        this.operators[2]['<>'] = BINARY; // Not Equal
+                    }
+                }
+
+                const mysqlParser = new MySqlWhereParser();
+                const parsed = mysqlParser.parse('a <> b OR b <=> c');
+
+                equals(parsed.expressionTree, [
+                    'OR',
+                    [
+                        [
+                            '<>',
+                            [
+                                'a',
+                                'b'
+                            ]
+                        ],
+                        [
+                            '<=>',
+                            [
+                                'b',
+                                'c'
+                            ]
+                        ]
+                    ]
+                ]);
+            });
+        });
+
+        describe('#operatorsFlattened:Object', function() {
+
+            it('is an object whose keys are the supported operators', function() {
+
+                const operatorsFlattened = parser.operatorsFlattened;
+                
+                parser.operators.forEach((operators) => {
+                    
+                    Object.keys(operators).forEach((operator) => {
+                       
+                        operatorsFlattened[operator].should.equal(operators[operator]);
                     });
                 });
             });
