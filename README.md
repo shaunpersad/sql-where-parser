@@ -1,7 +1,6 @@
 # TOC
    - [SqlWhereParser](#sqlwhereparser)
      - [What is it?](#sqlwhereparser-what-is-it)
-       - [SqlWhereParser parses the WHERE portion of an SQL string into many forms](#sqlwhereparser-what-is-it-sqlwhereparser-parses-the-where-portion-of-an-sql-string-into-many-forms)
      - [Installation](#sqlwhereparser-installation)
      - [API](#sqlwhereparser-api)
        - [#parse(String: sql):Object](#sqlwhereparser-api-parsestring-sqlobject)
@@ -29,53 +28,53 @@ SqlWhereParser parses the WHERE portion of an SQL string into many forms.
 
 ```js
 const sql = 'job = "developer" AND hasJob = true';
-            const parser = new SqlWhereParser();
-            const parsed = parser.parse(sql);
-            // "parsed" is an object that looks like:
-            // {
-            //     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
-            //     "expression": [
-            //         [
-            //             "job",
-            //             "=",
-            //             "developer"
-            //         ],
-            //         "AND",
-            //         [
-            //             "hasJob",
-            //             "=",
-            //             true
-            //         ]
-            //     ],
-            //     "expressionDisplay": [
-            //         "job",
-            //         "=",
-            //         "developer",
-            //         "AND",
-            //         "hasJob",
-            //         "=",
-            //         true
-            //     ],
-            //     "expressionTree": [
-            //         "AND",
-            //         [
-            //             [
-            // "=",
-            // [
-            //     "job",
-            //     "developer"
-            // ]
-            //             ],
-            //             [
-            // "=",
-            // [
-            //     "hasJob",
-            //     true
-            // ]
-            //             ]
-            //         ]
-            //     ]
-            // };
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql);
+// "parsed" is an object that looks like:
+// {
+//     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
+//     "expression": [
+//         [
+//             "job",
+//             "=",
+//             "developer"
+//         ],
+//         "AND",
+//         [
+//             "hasJob",
+//             "=",
+//             true
+//         ]
+//     ],
+//     "expressionDisplay": [
+//         "job",
+//         "=",
+//         "developer",
+//         "AND",
+//         "hasJob",
+//         "=",
+//         true
+//     ],
+//     "expressionTree": [
+//         "AND",
+//         [
+//             [
+//                 "=",
+//                 [
+//                     "job",
+//                     "developer"
+//                 ]
+//             ],
+//             [
+//                 "=",
+//                 [
+//                     "hasJob",
+//                     true
+//                 ]
+//             ]
+//         ]
+//     ]
+// };
 ```
 
 The "expression" result is an array where each sub-expression is explicitly grouped based on order of operations.
@@ -114,117 +113,117 @@ The "expressionDisplay" result uses only the original groupings, except for unne
 
 ```js
 const sql = 'job = "developer" AND (hasJob = true OR age > null)';
-            const parser = new SqlWhereParser();
-            const parsed = parser.parse(sql);
-            const toHtml = (expression) => {
-if (!expression || !(expression.constructor === Array)) {
-    const isOperator = parser.operatorType(expression);
-    if (isOperator) {
-        return `<strong class="operator">${expression}</strong>`;
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql);
+const toHtml = (expression) => {
+    if (!expression || !(expression.constructor === Array)) {
+        const isOperator = parser.operatorType(expression);
+        if (isOperator) {
+            return `<strong class="operator">${expression}</strong>`;
+        }
+        return `<span class="operand">${expression}</span>`;
     }
-    return `<span class="operand">${expression}</span>`;
-}
-const html = expression.map((subExpression) => {
-    return toHtml(subExpression);
-});
-return `<div class="expression">${html.join('')}</div>`;
-            };
-            const html = toHtml(parsed.expressionDisplay);
-            // "html" is now a string that looks like:
-            // <div class="expression">
-            //   <span class="operand">job</span><strong class="operator">=</strong><span class="operand">developer</span>
-            //   <strong class="operator">AND</strong>
-            //     <div class="expression">
-            //       <span class="operand">hasJob</span><strong class="operator">=</strong><span class="operand">true</span>
-            //       <strong class="operator">OR</strong>
-            //       <span class="operand">age</span><strong class="operator">></strong><span class="operand">null</span>
-            //     </div>
-            // </div>
+    const html = expression.map((subExpression) => {
+        return toHtml(subExpression);
+    });
+    return `<div class="expression">${html.join('')}</div>`;
+};
+const html = toHtml(parsed.expressionDisplay);
+// "html" is now a string that looks like:
+// <div class="expression">
+//   <span class="operand">job</span><strong class="operator">=</strong><span class="operand">developer</span>
+//   <strong class="operator">AND</strong>
+//     <div class="expression">
+//       <span class="operand">hasJob</span><strong class="operator">=</strong><span class="operand">true</span>
+//       <strong class="operator">OR</strong>
+//       <span class="operand">age</span><strong class="operator">></strong><span class="operand">null</span>
+//     </div>
+// </div>
 ```
 
 The "expressionTree" result is an array where the first element is the operation, and the second element is an array of that operation's operands..
 
 ```js
 //     "expressionTree": [
-            //         "AND",
-            //         [
-            //             [
-            // "=",
-            // [
-            //     "job",
-            //     "developer"
-            // ]
-            //             ],
-            //             [
-            // "=",
-            // [
-            //     "hasJob",
-            //     true
-            // ]
-            //             ]
-            //         ]
-            //     ]
+//         "AND",
+//         [
+//             [
+//                 "=",
+//                 [
+//                     "job",
+//                     "developer"
+//                 ]
+//             ],
+//             [
+//                 "=",
+//                 [
+//                     "hasJob",
+//                     true
+//                 ]
+//             ]
+//         ]
+//     ]
 ```
 
 "expressionTree" can be used to convert to other query languages, such as MongoDB or Elasticsearch.
 
 ```js
 const sql = 'job = "developer" AND (hasJob = true OR age > 17)';
-            const parser = new SqlWhereParser();
-            const parsed = parser.parse(sql);
-            const toMongo = (expression) => {
-if (!expression || !(expression.constructor === Array)) {
-    return expression;
-}
-const operator = expression[0];
-const operands = expression[1];
-return map[operator](operands);
-            };
-            const map = {
-'=': (operands) => {
-    return {
-        [operands[0]]: toMongo(operands[1])
-    };
-},
-'>': (operands) => {
-    return {
-        [operands[0]]: {
-            $gt: toMongo(operands[1])
-        }
-    };
-},
-'AND': (operands) => {
-    return {
-        $and : operands.map(toMongo)
-    };
-},
-'OR': (operands) => {
-    return {
-        $or: operands.map(toMongo)
-    };
-}
-            };
-            const mongo = toMongo(parsed.expressionTree);
-            // "mongo" is now an object that looks like:
-            // {
-            //   "$and": [
-            //     {
-            //       "job": "developer"
-            //     },
-            //     {
-            //       "$or": [
-            //         {
-            //           "hasJob": true
-            //         },
-            //         {
-            //           "age": {
-            //             "$gt": 17
-            //           }
-            //         }
-            //       ]
-            //     }
-            //   ]
-            // }
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql);
+const toMongo = (expression) => {
+    if (!expression || !(expression.constructor === Array)) {
+        return expression;
+    }
+    const operator = expression[0];
+    const operands = expression[1];
+    return map[operator](operands);
+};
+const map = {
+    '=': (operands) => {
+        return {
+            [operands[0]]: toMongo(operands[1])
+        };
+    },
+    '>': (operands) => {
+        return {
+            [operands[0]]: {
+                $gt: toMongo(operands[1])
+            }
+        };
+    },
+    'AND': (operands) => {
+        return {
+            $and : operands.map(toMongo)
+        };
+    },
+    'OR': (operands) => {
+        return {
+            $or: operands.map(toMongo)
+        };
+    }
+};
+const mongo = toMongo(parsed.expressionTree);
+// "mongo" is now an object that looks like:
+// {
+//   "$and": [
+//     {
+//       "job": "developer"
+//     },
+//     {
+//       "$or": [
+//         {
+//           "hasJob": true
+//         },
+//         {
+//           "age": {
+//             "$gt": 17
+//           }
+//         }
+//       ]
+//     }
+//   ]
+// }
 ```
 
 If you wish to combine the tokens yourself, the "tokens" result is a flat array of the tokens as found in the original SQL string.
@@ -261,16 +260,16 @@ is an array containing the tokens of the SQL string (wrapped in parentheses).
 
 ```js
 const results = parser.parse('name = shaun');
-    results.tokens.should.be.an.Array;
-    equals(results.tokens, ['(', 'name', '=', 'shaun', ')']);
+results.tokens.should.be.an.Array;
+equals(results.tokens, ['(', 'name', '=', 'shaun', ')']);
 ```
 
 treats anything wrapped in single-quotes, double-quotes, and ticks as a single token.
 
 ```js
 const results = parser.parse(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
-    results.tokens.should.be.an.Array;
-    equals(results.tokens, ['(', '(', 'name', '=', 'shaun', ')', 'and', 'a', '=', 'b(', 'or', '(', 'c', 'OR', 'd e, f', ')', ')']);
+results.tokens.should.be.an.Array;
+equals(results.tokens, ['(', '(', 'name', '=', 'shaun', ')', 'and', 'a', '=', 'b(', 'or', '(', 'c', 'OR', 'd e, f', ')', ')']);
 ```
 
 <a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpression"></a>
@@ -279,91 +278,91 @@ is the parsed SQL as an array.
 
 ```js
 const parsed = parser.parse('name = shaun');
-    equals(parsed.expression, ['name', '=', 'shaun']);
+equals(parsed.expression, ['name', '=', 'shaun']);
 ```
 
 does not care about spaces.
 
 ```js
 const parsed = parser.parse('  name  =  shaun     ');
-    equals(parsed.expression, ['name', '=', 'shaun']);
+equals(parsed.expression, ['name', '=', 'shaun']);
 ```
 
 strips out unnecessary parentheses.
 
 ```js
 const parsed = parser.parse('(((name) = ((shaun))))');
-    equals(parsed.expression, ['name', '=', 'shaun']);
+equals(parsed.expression, ['name', '=', 'shaun']);
 ```
 
 adds explicit groupings defined by the order of operations.
 
 ```js
 const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
-    /**
-     * Original.
-     */
-    'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
-    /**
-     * Perform equals.
-     */
-    '(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
-    /**
-     * Perform IN
-     */
-    '(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
-    /**
-     * Perform AND
-     */
-    '(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
-    equals(parsed.expression, [
+/**
+ * Original.
+ */
+'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
+/**
+ * Perform equals.
+ */
+'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
+/**
+ * Perform IN
+ */
+'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
+/**
+ * Perform AND
+ */
+'(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
+equals(parsed.expression, [
+    [
         [
-            [
-"name",
-"=",
-"shaun"
-            ],
-            "AND",
-            [
-"job",
-"=",
-"developer"
-            ]
+            "name",
+            "=",
+            "shaun"
         ],
         "AND",
         [
-            [
-"gender",
-"=",
-"male"
-            ],
-            "OR",
-            [
-[
-    [
-        "type",
-        "=",
-        "person"
+            "job",
+            "=",
+            "developer"
+        ]
     ],
     "AND",
     [
-        "location",
-        "IN",
         [
-            "NY",
-            "America"
-        ]
-    ]
-],
-"AND",
-[
-    "hobby",
-    "=",
-    "coding"
-]
+            "gender",
+            "=",
+            "male"
+        ],
+        "OR",
+        [
+            [
+                [
+                    "type",
+                    "=",
+                    "person"
+                ],
+                "AND",
+                [
+                    "location",
+                    "IN",
+                    [
+                        "NY",
+                        "America"
+                    ]
+                ]
+            ],
+            "AND",
+            [
+                "hobby",
+                "=",
+                "coding"
             ]
         ]
-    ]);
+    ]
+]);
 ```
 
 <a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpressiondisplay"></a>
@@ -372,36 +371,36 @@ uses only the original groupings, except for unnecessary groups.
 
 ```js
 const parsed = parser.parse('(name = shaun AND job = developer AND ((gender = male OR type = person AND location IN (NY, America) AND hobby = coding)))');
-    equals(parsed.expressionDisplay, [
-        "name",
+equals(parsed.expressionDisplay, [
+    "name",
+    "=",
+    "shaun",
+    "AND",
+    "job",
+    "=",
+    "developer",
+    "AND",
+    [
+        "gender",
         "=",
-        "shaun",
-        "AND",
-        "job",
+        "male",
+        "OR",
+        "type",
         "=",
-        "developer",
+        "person",
         "AND",
+        "location",
+        "IN",
         [
-            "gender",
-            "=",
-            "male",
-            "OR",
-            "type",
-            "=",
-            "person",
-            "AND",
-            "location",
-            "IN",
-            [
-"NY",
-"America"
-            ],
-            "AND",
-            "hobby",
-            "=",
-            "coding"
-        ]
-    ]);
+            "NY",
+            "America"
+        ],
+        "AND",
+        "hobby",
+        "=",
+        "coding"
+    ]
+]);
 ```
 
 <a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpressiontree"></a>
@@ -410,92 +409,92 @@ converts the expression into a tree.
 
 ```js
 const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
-    /**
-     * Original.
-     */
-    'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
-    /**
-     * Perform equals.
-     */
-    '(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
-    /**
-     * Perform IN
-     */
-    '(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
-    /**
-     * Perform AND
-     */
-    '(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
-    equals(parsed.expressionTree, [
-        'AND',
+/**
+ * Original.
+ */
+'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
+/**
+ * Perform equals.
+ */
+'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
+/**
+ * Perform IN
+ */
+'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
+/**
+ * Perform AND
+ */
+'(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
+equals(parsed.expressionTree, [
+    'AND',
+    [
         [
+            'AND',
             [
-'AND',
-[
-    [
-        '=',
+                [
+                    '=',
+                    [
+                        'name',
+                        'shaun'
+                    ]
+                ],
+                [
+                    '=',
+                    [
+                        'job',
+                        'developer'
+                    ]
+                ]
+            ]
+        ],
         [
-            'name',
-            'shaun'
-        ]
-    ],
-    [
-        '=',
-        [
-            'job',
-            'developer'
-        ]
-    ]
-]
-            ],
+            'OR',
             [
-'OR',
-[
-    [
-        '=',
-        [
-            'gender',
-            'male'
-        ]
-    ],
-    [
-        'AND',
-        [
-            [
-'AND',
-[
-    [
-        '=',
-        [
-            'type',
-            'person'
-        ]
-    ],
-    [
-        'IN',
-        [
-            'location',
-            [
-'NY',
-'America'
+                [
+                    '=',
+                    [
+                        'gender',
+                        'male'
+                    ]
+                ],
+                [
+                    'AND',
+                    [
+                        [
+                            'AND',
+                            [
+                                [
+                                    '=',
+                                    [
+                                        'type',
+                                        'person'
+                                    ]
+                                ],
+                                [
+                                    'IN',
+                                    [
+                                        'location',
+                                        [
+                                            'NY',
+                                            'America'
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ],
+                        [
+                            '=',
+                            [
+                                'hobby',
+                                'coding'
+                            ]
+                        ]
+                    ]
+                ]
             ]
         ]
     ]
-]
-            ],
-            [
-'=',
-[
-    'hobby',
-    'coding'
-]
-            ]
-        ]
-    ]
-]
-            ]
-        ]
-    ]);
+]);
 ```
 
 <a name="sqlwhereparser-api-expressiontreefromexpressionarray-expressionarray"></a>
