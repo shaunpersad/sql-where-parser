@@ -573,8 +573,8 @@ describe('SqlWhereParser', function() {
                     }
                 }
 
-                const mysqlParser = new MySqlWhereParser();
-                const parsed = mysqlParser.parse('a <> b OR b <=> c');
+                const mySqlParser = new MySqlWhereParser();
+                const parsed = mySqlParser.parse('a <> b OR b <=> c');
 
                 equals(parsed.expressionTree, [
                     'OR',
