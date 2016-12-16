@@ -396,7 +396,3 @@ module.exports = class GenericSqlParser {
     }
 
 };
-
-//const parser = new module.exports();
-//const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
-//console.log(JSON.stringify(parsed));
