@@ -4,32 +4,65 @@ const MODE_NONE = 'modeNone';
 const MODE_DEFAULT = 'modeDefault';
 const MODE_MATCH = 'modeMatch';
 
+const defaultConfig = {
+    shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
+    shouldMatch: ['"', "'", '`'],
+    shouldDelimitBy: [' ', "\n", "\r", "\t"],
+    forEachToken: () => {}
+};
+
+class Literal {
+
+    constructor(value) {
+        this.value = value;
+    }
+    valueOf() {
+        return this.value;
+    }
+    toJSON() {
+        return this.value;
+    }
+    toString() {
+        return `${this.value}`;
+    }
+}
+
 module.exports = class Tokenizer {
     
-    constructor(toTokenize) {
+    constructor(config) {
+        
+        if (!config) {
+            config = {};
+        }
+        
+        config = Object.assign({}, config, defaultConfig);
+        this.tokenizeList = [];
+        this.tokenizeMap = {};
+        this.matchList = [];
+        this.matchMap = {};
+        this.delimiterList = [];
+        this.delimiterMap = {};
 
-        this.toTokenize = toTokenize || ['(', ')'];
+        config.shouldTokenize.forEach((token) => {
 
-        this.matchers = {
-            '"': '"',
-            "'": "'",
-            '`': '`'
-        };
+            this.tokenizeList.push(token);
+            this.tokenizeMap[token] = token;
+        });
 
-        this.delimiters = {
-            ' ': ' ',
-            "\n": "\n",
-            "\r": "\r",
-            "\t": "\t",
-            ',': ','
-        };
+        config.shouldMatch.forEach((match) => {
 
-        this.previousChr = null;
-        this.currentMatcher = null;
-        this.currentToken = '';
-        this.modeStack = [MODE_NONE];
-        this.stack = [];
-        this.iteratee = () => {};
+            this.matchList.push(match);
+            this.matchMap[match] = match;
+        });
+
+        config.shouldDelimitBy.forEach((delimiter) => {
+
+            this.delimiterList.push(delimiter);
+            this.delimiterMap[delimiter] = delimiter;
+        });
+
+        //console.log(this);
+        this.setStack();
     }
 
     get currentMode() {
@@ -42,13 +75,28 @@ module.exports = class Tokenizer {
         this.modeStack.push(mode);
     }
 
-    completeMode() {
+    setStack() {
+
+        this.previousChr = null;
+        this.toMatch = null;
+        this.currentToken = '';
+        this.modeStack = [MODE_NONE];
+        this.stack = [];
+    }
+
+    completeCurrentMode() {
+
+        if ((this.currentMode === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
+            this.push(this.currentToken);
+        }
+        this.currentToken = '';
+
         this.modeStack.pop();
     }
     
     push(token) {
 
-        if (this.currentMode === MODE_DEFAULT) {
+        if (this.currentMode !== MODE_MATCH) {
             switch(token.toLowerCase()) {
                 case 'null':
                     token = null;
@@ -65,15 +113,22 @@ module.exports = class Tokenizer {
                     }
                     break;
             }
+            token = new Literal(token);
         }
-        this.iteratee(token);
+
+        if (this.forEachToken) {
+            this.forEachToken(token);
+        }
+
         this.stack.push(token);
     }
     
-    tokenize(str, iteratee) {
-        
-        if (iteratee) {
-            this.iteratee = iteratee;
+    tokenize(str, forEachToken) {
+
+        this.setStack();
+
+        if (forEachToken) {
+            this.forEachToken = forEachToken;
         }
         
         let index = 0;
@@ -83,11 +138,8 @@ module.exports = class Tokenizer {
         }
         
         while (this.currentMode !== MODE_NONE) {
-            this.completeMode();
-            if (this.currentToken) {
-                this.push(this.currentToken);
-                this.currentToken = '';   
-            }
+
+            this.completeCurrentMode();
         }
         
         return this.stack;
@@ -101,60 +153,55 @@ module.exports = class Tokenizer {
     
     [MODE_NONE](chr) {
 
-        if (this.toTokenize.indexOf(chr) !== -1) {
-            return this.push(chr);
-        }
-
-        if (!this.matchers[chr]) {
+        if (!this.matchMap[chr]) {
 
             this.currentMode = MODE_DEFAULT;
             return this.consume(chr);
         }
 
         this.currentMode = MODE_MATCH;
-        this.currentMatcher = chr;
+        this.toMatch = chr;
     }
 
     [MODE_DEFAULT](chr) {
 
-        if (this.toTokenize.indexOf(chr) !== -1) {
+        if (this.delimiterMap[chr]) {
 
-            if (this.currentToken.length) {
-
-                this.push(this.currentToken);
-                this.currentToken = '';
-            }
-            this.push(chr);
-            return this.completeMode();
+            return this.completeCurrentMode();
         }
 
-        if (this.delimiters[chr]) {
-
-            if (this.currentToken.length) {
-
-                this.push(this.currentToken);
-                this.currentToken = '';
-            }
-            return this.completeMode();
-        }
         this.currentToken+=chr;
+
+        let tokenizeIndex = 0;
+        while(tokenizeIndex < this.tokenizeList.length) {
+            const tokenize = this.tokenizeList[tokenizeIndex++];
+            const suffixIndex = this.currentToken.indexOf(tokenize);
+            if (suffixIndex !== -1) {
+                this.currentToken = this.currentToken.substring(0, suffixIndex);
+                this.completeCurrentMode();
+                return this.push(tokenize);
+            }
+        }
     }
 
     [MODE_MATCH](chr) {
 
-        if (chr === this.currentMatcher) {
+        if (chr === this.toMatch) {
 
-            if (this.previousChr === "\\") {
-
-                this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
-            } else {
-                this.push(this.currentToken);
-                this.currentToken = '';
-                this.completeMode();
-                return;
+            if (this.previousChr !== "\\") {
+                return this.completeCurrentMode();
             }
+            this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
         }
 
         this.currentToken+=chr;
+    }
+    
+    static get Literal() {
+        return Literal;
+    }
+    
+    static get defaultConfig() {
+        return defaultConfig;
     }
 };

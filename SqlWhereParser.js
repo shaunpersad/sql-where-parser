@@ -1,6 +1,8 @@
 "use strict";
 const Tokenizer = require('./Tokenizer');
 
+class ArrayIndex extends Number {}
+
 const OPERATOR_TYPE_UNARY = (indexOfOperatorInExpression, expression) => {
     const operator = expression[indexOfOperatorInExpression];
     const operand = expression[indexOfOperatorInExpression + 1];
@@ -25,11 +27,11 @@ const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, expression) => {
 
 const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, expression) => {
 
-    const AND = expression[indexOfOperatorInExpression + 2];
+    const AND = module.exports.isLiteral(expression[indexOfOperatorInExpression + 2]);
     const min = expression[indexOfOperatorInExpression + 1];
     const max =  expression[indexOfOperatorInExpression + 3];
 
-    if ((typeof AND === 'string' || AND instanceof String) && AND.toUpperCase() === 'AND' && min !== undefined && max !== undefined) {
+    if ((typeof AND === 'string') && AND.toUpperCase() === 'AND' && min !== undefined && max !== undefined) {
         return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1, indexOfOperatorInExpression + 3];
     }
     throw new SyntaxError('"BETWEEN" syntax is "BETWEEN {min} AND {max}"')
@@ -41,7 +43,7 @@ const OPERATOR_TYPE_BINARY_IN = (indexOfOperatorInExpression, expression) => {
     const operand2 = expression[indexOfOperatorInExpression + 1];
 
     if (operand1 !== undefined && operand2 !== undefined && operand2.constructor === Array) {
-        return [indexOfOperatorInExpression - 1, new LiteralIndex(indexOfOperatorInExpression + 1)];
+        return [indexOfOperatorInExpression - 1, new ArrayIndex(indexOfOperatorInExpression + 1)];
     }
 
     throw new SyntaxError('"IN" syntax is "IN({array})"')
@@ -51,74 +53,70 @@ const sortNumber = (a, b) => {
     return a - b;
 };
 
-class LiteralIndex extends Number {}
+const defaultConfig = {
+    operators: [
+        {
+            '*': OPERATOR_TYPE_BINARY,
+            '/': OPERATOR_TYPE_BINARY,
+            '%': OPERATOR_TYPE_BINARY
+        },
+        {
+            '+': OPERATOR_TYPE_BINARY,
+            '-': OPERATOR_TYPE_BINARY
+        },
+        {
+            '=': OPERATOR_TYPE_BINARY,
+            '!=': OPERATOR_TYPE_BINARY,
+            '<': OPERATOR_TYPE_BINARY,
+            '>': OPERATOR_TYPE_BINARY,
+            '<=': OPERATOR_TYPE_BINARY,
+            '>=': OPERATOR_TYPE_BINARY
+        },
+        {
+            'NOT': OPERATOR_TYPE_UNARY
+        },
+        {
+            'BETWEEN': OPERATOR_TYPE_TERNARY_BETWEEN,
+            'IN': OPERATOR_TYPE_BINARY_IN,
+            'IS': OPERATOR_TYPE_BINARY,
+            'LIKE': OPERATOR_TYPE_BINARY
+        },
+        {
+            'AND': OPERATOR_TYPE_BINARY
+        },
+        {
+            'OR': OPERATOR_TYPE_BINARY
+        }
+    ],
+    tokenizer: {
+        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
+        shouldMatch: ['"', "'", '`'],
+        shouldDelimitBy: [' ', "\n", "\r", "\t"],
+        forEachToken: () => {}
+    }
+};
 
 module.exports = class SqlWhereParser {
 
-    constructor() {
+    constructor(config) {
 
-        const UNARY = this.constructor.OPERATOR_TYPE_UNARY;
-        const BINARY = this.constructor.OPERATOR_TYPE_BINARY;
-        const BETWEEN = this.constructor.OPERATOR_TYPE_TERNARY_BETWEEN;
-        const IN = this.constructor.OPERATOR_TYPE_BINARY_IN;
-
-        /**
-         * Defines operator precedence.
-         *
-         * To change this, simply subclass SqlWhereParser.
-         *
-         * @type {*[]}
-         */
-        this.operators = [
-            {
-                '*': BINARY,
-                '/': BINARY,
-                '%': BINARY
-            },
-            {
-                '+': BINARY,
-                '-': BINARY
-            },
-            {
-                '=': BINARY,
-                '!=': BINARY,
-                '<': BINARY,
-                '>': BINARY,
-                '<=': BINARY,
-                '>=': BINARY
-            },
-            {
-                'NOT': UNARY
-            },
-            {
-                'BETWEEN': BETWEEN,
-                'IN': IN,
-                'IS': BINARY,
-                'LIKE': BINARY
-            },
-            {
-                'AND': BINARY
-            },
-            {
-                'OR': BINARY
-            }
-        ];
-    }
-    
-    get operatorsFlattened() {
-        
-        if (!this._operatorsFlattened) {
-            this._operatorsFlattened = {};
-
-            let precedenceIndex = 0;
-
-            while (precedenceIndex < this.operators.length) {
-
-                const operators = this.operators[precedenceIndex++];
-                Object.assign(this._operatorsFlattened, operators);
-            }  
+        if (!config) {
+            config = {};
         }
-        return this._operatorsFlattened;
+
+        config = Object.assign({}, config, defaultConfig);
+        
+        this.operators = config.operators;
+        this.tokenizer = new Tokenizer(config.tokenizer);
+        this.operatorsFlattened = {};
+
+        let precedenceIndex = 0;
+
+        while (precedenceIndex < this.operators.length) {
+
+            const operators = this.operators[precedenceIndex++];
+            Object.assign(this.operatorsFlattened, operators);
+        }
     }
 
     /**
@@ -140,10 +138,11 @@ module.exports = class SqlWhereParser {
 
         const expressionParentheses = [];
         const expressionDisplayParentheses = [];
+        let lastTokenValue = null;
 
-        const tokens = this.constructor.tokenize(`(${sql})`, (token) => {
+        const tokens = this.tokenizer.tokenize(`(${sql})`, (token) => {
 
-            switch (token) {
+            switch (token.valueOf()) {
                 case '(':
                     expressionParentheses.push(expression.length);
                     expressionDisplayParentheses.push(expressionDisplay.length);
@@ -153,18 +152,34 @@ module.exports = class SqlWhereParser {
                     const displayParenthesisIndex = expressionDisplayParentheses.pop();
 
                     const expressionTokens = expression.splice(precedenceParenthesisIndex, expression.length);
-                    const expresisonDisplayTokens = expressionDisplay.splice(displayParenthesisIndex, expressionDisplay.length);
+                    const expressionDisplayTokens = expressionDisplay.splice(displayParenthesisIndex, expressionDisplay.length);
 
                     expression.push(this.setPrecedenceInExpression(expressionTokens));
-                    expressionDisplay.push(this.constructor.reduceArray(expresisonDisplayTokens));
+                    expressionDisplay.push(this.constructor.reduceArray(expressionDisplayTokens));
+                    break;
+                case ',':
+
+                    if (!expression[expression.length - 1] || expression[expression.length - 1].constructor !== Array) {
+                        expression[expression.length - 1] = [expression[expression.length - 1]];
+                    }
+                    if (!expressionDisplay[expressionDisplay.length - 1] || expressionDisplay[expressionDisplay.length - 1].constructor !== Array) {
+                        expressionDisplay[expressionDisplay.length - 1] = [expressionDisplay[expressionDisplay.length - 1]];
+                    }
                     break;
                 case '':
                     break;
                 default:
-                    expression.push(token);
-                    expressionDisplay.push(token);
+                    if (lastTokenValue === ',') {
+
+                        expression[expression.length - 1].push(token);
+                        expressionDisplay[expressionDisplay.length - 1].push(token);
+                    } else {
+                        expression.push(token);
+                        expressionDisplay.push(token);
+                    }
                     break;
             }
+            lastTokenValue = token.valueOf();
         });
         
         return {
@@ -192,9 +207,9 @@ module.exports = class SqlWhereParser {
         
         while(!expressionTree.length && tokenIndex < expression.length) {
 
-            const token = expression[tokenIndex];
+            const token = this.constructor.isLiteral(expression[tokenIndex]);
 
-            if (typeof token === 'string' || token instanceof String) {
+            if (typeof token === 'string') {
 
                 const potentialOperator = token.toUpperCase();
                 const getOperandIndexes = this.operatorsFlattened[potentialOperator];
@@ -204,12 +219,18 @@ module.exports = class SqlWhereParser {
                     const operands = [];
                     const operandIndexes = getOperandIndexes(tokenIndex, expression);
                     let operandIndexesIndex = 0;
-                    
-                    while (operandIndexesIndex < operandIndexes.length) {
-                        const operandIndex = operandIndexes[operandIndexesIndex++];
 
-                        if (operandIndex.constructor === this.constructor.LiteralIndex) {
-                            operands.push(expression[operandIndex]);
+                    while (operandIndexesIndex < operandIndexes.length) {
+                        
+                        const operandIndex = operandIndexes[operandIndexesIndex++];
+                        if (operandIndex.constructor === ArrayIndex) {
+                            let elementIndex = 0;
+                            const arrayExpression = [];
+                            
+                            while (elementIndex < expression[operandIndex].length) {
+                                arrayExpression.push(this.expressionTreeFromExpression(expression[operandIndex][elementIndex++]));
+                            }
+                            operands.push(arrayExpression);
                         } else {
                             operands.push(this.expressionTreeFromExpression(expression[operandIndex]));
                         }
@@ -247,9 +268,9 @@ module.exports = class SqlWhereParser {
 
             while(tokenIndex < expression.length) {
 
-                const token = expression[tokenIndex];
+                const token = this.constructor.isLiteral(expression[tokenIndex]);
 
-                if (typeof token === 'string' || token instanceof String) {
+                if (typeof token === 'string') {
 
                     const getOperandIndexes = operators[token.toUpperCase()];
 
@@ -276,7 +297,8 @@ module.exports = class SqlWhereParser {
      */
     operatorType(operator) {
         
-        if (!(typeof operator === 'string' || operator instanceof String)) {
+        operator = this.constructor.isLiteral(operator);
+        if (typeof operator !== 'string') {
             return null;
         }
 
@@ -304,17 +326,9 @@ module.exports = class SqlWhereParser {
         return found ? found : null;
     }
 
-    /**
-     * Tokenizes an SQL-like string.
-     *
-     * @param {string} sql - the SQL-like string to tokenize.
-     * @param {function} [iteratee] - an optional function that will be called for each token.
-     * @returns {[]}
-     */
-    static tokenize(sql, iteratee) {
-
-        const tokenizer = new Tokenizer();
-        return tokenizer.tokenize(sql, iteratee);
+    static isLiteral(token) {
+        
+        return (token instanceof Tokenizer.Literal) ? token.valueOf() : false;
     }
 
     /**
@@ -359,23 +373,14 @@ module.exports = class SqlWhereParser {
     /**
      * Defines an operator of IN type.
      *
-     * The IN operator is unique in that the second argument must be an array of literals.
-     * This means that the token in second index should not be parsed in any way. Using the LiteralIndex class, this is possible.
+     * The IN operator is unique in that the second argument must be an array.
+     * 
      * @returns {function()}
      * @constructor
      */
     static get OPERATOR_TYPE_BINARY_IN() {
         return OPERATOR_TYPE_BINARY_IN;
     }
-
-    /**
-     * A replacement for a Number, to indicate that that index should not be parsed.
-     *
-     * It is used
-     *
-     * @returns {LiteralIndex}
-     * @constructor
-     */
 
     /**
      * Defines an operator of BETWEEN type.
@@ -391,14 +396,25 @@ module.exports = class SqlWhereParser {
     }
 
     /**
-     * A subclass of Number that can be used to indicate that this particular expression should not be evaluated.
-     * This is useful when your expression is an array of literals.
-     * 
-     * @returns {LiteralIndex}
+     * Use this instead of a Number when defining your own operator types, if the operand should be an array.
+     *
+     * @returns {ArrayIndex}
      * @constructor
      */
-    static get LiteralIndex() {
-        return LiteralIndex;
+    static get ArrayIndex() {
+        return ArrayIndex;
     }
-
+    
+    static get Tokenizer() {
+        return Tokenizer;
+    }
+    
+    static get defaultConfig() {
+        return defaultConfig;
+    }
 };
+
+// const sql = 'city IN (A, B)';
+// const parser = new module.exports();
+// const parsed = parser.parse(sql);
+// console.log(JSON.stringify(parsed));

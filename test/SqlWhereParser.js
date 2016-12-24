@@ -316,6 +316,7 @@ describe('SqlWhereParser', function() {
                      */
                     '(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
 
+                    console.log('stringify', JSON.stringify(parsed.expression));
                     equals(parsed.expression, [
                         [
                             [
@@ -515,8 +516,16 @@ describe('SqlWhereParser', function() {
         describe('#setPrecedenceInExpression(Array|*: expression):Array', function() {
 
             it('takes an array of tokens and groups them explicitly, based on the order of operations', function() {
+                
+                const Literal = SqlWhereParser.Tokenizer.Literal;
 
-                const orderedTokens = parser.setPrecedenceInExpression(['a1', '=', 'a2', 'OR', 'b', 'AND', 'c', 'OR', 'd', 'LIKE', 'e', 'AND', 'f', '<', 'g']);
+                const orderedTokens = parser.setPrecedenceInExpression([
+                    'a1', new Literal('='), 'a2', 
+                    new Literal('OR'), 'b', new Literal('AND'), 
+                    'c', new Literal('OR'), '' +
+                    'd', new Literal('LIKE'), 
+                    'e', new Literal('AND'), 
+                    'f', new Literal('<'), 'g']);
 
                 equals(orderedTokens, [[["a1","=","a2"],"OR",["b","AND","c"]],"OR",[["d","LIKE","e"],"AND",["f","<","g"]]]);
             });
@@ -526,13 +535,15 @@ describe('SqlWhereParser', function() {
 
             it("returns the operator's type (unary, binary, etc.)", function() {
 
+                const Literal = SqlWhereParser.Tokenizer.Literal;
+                
                 parser.operators.forEach((operators) => {
 
                     Object.keys(operators).forEach((operator) => {
 
                         const type = operators[operator];
-                        parser.operatorType(operator).should.equal(type);
-                        parser.operatorType(operator).should.be.a.Function;
+                        parser.operatorType(new Literal(operator)).should.equal(type);
+                        parser.operatorType(new Literal(operator)).should.be.a.Function;
                     });
                 });
             });
@@ -919,10 +930,5 @@ describe('SqlWhereParser', function() {
             });
 
         });
-
-        describe('.LiteralIndex', function() {
-
-        });
-
     });
 });
