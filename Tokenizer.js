@@ -4,8 +4,19 @@ const MODE_NONE = 'modeNone';
 const MODE_DEFAULT = 'modeDefault';
 const MODE_MATCH = 'modeMatch';
 
+const sortTokens = (a, b) => {
+    
+    if (a.length > b.length) {
+        return -1;
+    }
+    if (a.length < b.length) {
+        return 1;
+    }
+    return 0;
+};
+
 const defaultConfig = {
-    shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
+    shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>=', '!'],
     shouldMatch: ['"', "'", '`'],
     shouldDelimitBy: [' ', "\n", "\r", "\t"]
 };
@@ -55,8 +66,14 @@ class TokenizerInstance {
      * @returns {string}
      */
     completeCurrentMode() {
+        
+        const currentMode = this.getCurrentMode();
+        
+        if (currentMode === MODE_DEFAULT) {
+            this.pushDefaultModeTokenizables();
+        }
 
-        if ((this.getCurrentMode() === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
+        if ((currentMode === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
             this.push(this.currentToken);
         }
         this.currentToken = '';
@@ -152,17 +169,41 @@ class TokenizerInstance {
 
         this.currentToken+=chr;
 
+        return this.currentToken;
+    }
+    
+    pushDefaultModeTokenizables() {
+
         let tokenizeIndex = 0;
-        while(tokenizeIndex < this.tokenizer.tokenizeList.length) {
+        let lowestIndexOfTokenize = Infinity;
+        let toTokenize = null;
+
+        while(this.currentToken && tokenizeIndex < this.tokenizer.tokenizeList.length) {
+
             const tokenize = this.tokenizer.tokenizeList[tokenizeIndex++];
-            const suffixIndex = this.currentToken.indexOf(tokenize);
-            if (suffixIndex !== -1) {
-                this.currentToken = this.currentToken.substring(0, suffixIndex);
-                this.completeCurrentMode();
-                return this.push(tokenize);
+            const indexOfTokenize = this.currentToken.indexOf(tokenize);
+
+            if (indexOfTokenize !== -1 && indexOfTokenize < lowestIndexOfTokenize) {
+
+                lowestIndexOfTokenize = indexOfTokenize;
+                toTokenize = tokenize;
             }
         }
-        return this.currentToken;
+
+        if (!toTokenize) {
+            return;
+        }
+
+        if (lowestIndexOfTokenize > 0) {
+            this.push(this.currentToken.substring(0, lowestIndexOfTokenize));
+        }
+
+        if (lowestIndexOfTokenize !== -1) {
+
+            this.push(toTokenize);
+            this.currentToken = this.currentToken.substring(lowestIndexOfTokenize + toTokenize.length);
+            return this.pushDefaultModeTokenizables();
+        }
     }
 
     /**
@@ -204,7 +245,7 @@ class Tokenizer {
         this.delimiterList = [];
         this.delimiterMap = {};
 
-        config.shouldTokenize.forEach((token) => {
+        config.shouldTokenize.sort(sortTokens).forEach((token) => {
 
             this.tokenizeList.push(token);
             this.tokenizeMap[token] = token;

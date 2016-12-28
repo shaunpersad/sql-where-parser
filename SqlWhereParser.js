@@ -57,7 +57,8 @@ const defaultConfig = {
             '<': OPERATOR_TYPE_BINARY,
             '>': OPERATOR_TYPE_BINARY,
             '<=': OPERATOR_TYPE_BINARY,
-            '>=': OPERATOR_TYPE_BINARY
+            '>=': OPERATOR_TYPE_BINARY,
+            '!=': OPERATOR_TYPE_BINARY
         },
         {
             ',': OPERATOR_TYPE_BINARY
@@ -79,7 +80,7 @@ const defaultConfig = {
         }
     ],
     tokenizer: {
-        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
+        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>=', '!'],
         shouldMatch: ['"', "'", '`'],
         shouldDelimitBy: [' ', "\n", "\r", "\t"]
     }
@@ -208,6 +209,8 @@ class SqlWhereParser {
         this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
 
             tokenCount++;
+            
+            //console.log(token);
 
             /**
              * Read a token.
@@ -411,3 +414,7 @@ class SqlWhereParser {
  * @type {SqlWhereParser}
  */
 module.exports = SqlWhereParser;
+
+const sql = ' A != !B';
+const parser = new SqlWhereParser();
+console.log(JSON.stringify(parser.parse(sql)));
