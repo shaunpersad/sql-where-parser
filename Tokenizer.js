@@ -7,34 +7,195 @@ const MODE_MATCH = 'modeMatch';
 const defaultConfig = {
     shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
     shouldMatch: ['"', "'", '`'],
-    shouldDelimitBy: [' ', "\n", "\r", "\t"],
-    forEachToken: () => {}
+    shouldDelimitBy: [' ', "\n", "\r", "\t"]
 };
 
-class Literal {
 
-    constructor(value) {
-        this.value = value;
+class TokenizerInstance {
+
+    /**
+     * 
+     * @param {Tokenizer} tokenizer
+     * @param {string} str
+     * @param {function} forEachToken
+     */
+    constructor(tokenizer, str, forEachToken) {
+
+        this.tokenizer = tokenizer;
+        this.str = str;
+        this.forEachToken = forEachToken;
+
+        this.previousChr = '';
+        this.toMatch = '';
+        this.currentToken = '';
+        this.modeStack = [MODE_NONE];
     }
-    valueOf() {
-        return this.value;
+
+    /**
+     * 
+     * @returns {string}
+     */
+    getCurrentMode() {
+
+        return this.modeStack[this.modeStack.length - 1];
     }
-    toJSON() {
-        return this.value;
+
+    /**
+     * 
+     * @param {string} mode
+     * @returns {Number}
+     */
+    setCurrentMode(mode) {
+
+        return this.modeStack.push(mode);
     }
-    toString() {
-        return `${this.value}`;
+
+    /**
+     * 
+     * @returns {string}
+     */
+    completeCurrentMode() {
+
+        if ((this.getCurrentMode() === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
+            this.push(this.currentToken);
+        }
+        this.currentToken = '';
+
+        return this.modeStack.pop();
+    }
+
+    /**
+     * 
+     * @param {*} token
+     */
+    push(token) {
+
+        let surroundedBy = '';
+        if (this.getCurrentMode() !== MODE_MATCH) {
+            switch(token.toLowerCase()) {
+                case 'null':
+                    token = null;
+                    break;
+                case 'true':
+                    token = true;
+                    break;
+                case 'false':
+                    token = false;
+                    break;
+                default:
+                    if (isFinite(token)) {
+                        token = Number(token);
+                    }
+                    break;
+            }
+        } else {
+            surroundedBy = this.toMatch;
+        }
+
+        if (this.forEachToken) {
+            this.forEachToken(token, surroundedBy);
+        }
+    }
+    
+    tokenize() {
+
+        let index = 0;
+        while(index < this.str.length) {
+
+            this.consume(this.str.charAt(index++));
+        }
+
+        while (this.getCurrentMode() !== MODE_NONE) {
+
+            this.completeCurrentMode();
+        }
+    }
+
+    /**
+     * 
+     * @param {string} chr
+     */
+    consume(chr) {
+
+        this[this.getCurrentMode()](chr);
+        this.previousChr = chr;
+    }
+
+    /**
+     * 
+     * @param {string} chr
+     * @returns {*}
+     */
+    [MODE_NONE](chr) {
+
+        if (!this.tokenizer.matchMap[chr]) {
+
+            this.setCurrentMode(MODE_DEFAULT);
+            return this.consume(chr);
+        }
+
+        this.setCurrentMode(MODE_MATCH);
+        return this.toMatch = chr;
+    }
+
+    /**
+     * 
+     * @param {string} chr
+     * @returns {string}
+     */
+    [MODE_DEFAULT](chr) {
+
+        if (this.tokenizer.delimiterMap[chr]) {
+
+            return this.completeCurrentMode();
+        }
+
+        this.currentToken+=chr;
+
+        let tokenizeIndex = 0;
+        while(tokenizeIndex < this.tokenizer.tokenizeList.length) {
+            const tokenize = this.tokenizer.tokenizeList[tokenizeIndex++];
+            const suffixIndex = this.currentToken.indexOf(tokenize);
+            if (suffixIndex !== -1) {
+                this.currentToken = this.currentToken.substring(0, suffixIndex);
+                this.completeCurrentMode();
+                return this.push(tokenize);
+            }
+        }
+        return this.currentToken;
+    }
+
+    /**
+     * 
+     * @param {string} chr
+     * @returns {string}
+     */
+    [MODE_MATCH](chr) {
+
+        if (chr === this.toMatch) {
+
+            if (this.previousChr !== "\\") {
+                return this.completeCurrentMode();
+            }
+            this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
+        }
+
+        return this.currentToken+=chr;
     }
 }
 
-module.exports = class Tokenizer {
-    
+class Tokenizer {
+
+    /**
+     * 
+     * @param {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}} config
+     */
     constructor(config) {
-        
+
         if (!config) {
             config = {};
         }
-        
+
         config = Object.assign({}, config, defaultConfig);
         this.tokenizeList = [];
         this.tokenizeMap = {};
@@ -60,148 +221,26 @@ module.exports = class Tokenizer {
             this.delimiterList.push(delimiter);
             this.delimiterMap[delimiter] = delimiter;
         });
-
-        //console.log(this);
-        this.setStack();
-    }
-
-    get currentMode() {
-
-        return this.modeStack[this.modeStack.length - 1];
-    }
-
-    set currentMode(mode) {
-
-        this.modeStack.push(mode);
-    }
-
-    setStack() {
-
-        this.previousChr = null;
-        this.toMatch = null;
-        this.currentToken = '';
-        this.modeStack = [MODE_NONE];
-        this.stack = [];
-    }
-
-    completeCurrentMode() {
-
-        if ((this.currentMode === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
-            this.push(this.currentToken);
-        }
-        this.currentToken = '';
-
-        this.modeStack.pop();
-    }
-    
-    push(token) {
-
-        if (this.currentMode !== MODE_MATCH) {
-            switch(token.toLowerCase()) {
-                case 'null':
-                    token = null;
-                    break;
-                case 'true':
-                    token = true;
-                    break;
-                case 'false':
-                    token = false;
-                    break;
-                default:
-                    if (isFinite(token)) {
-                        token = Number(token);
-                    }
-                    break;
-            }
-            token = new Literal(token);
-        }
-
-        if (this.forEachToken) {
-            this.forEachToken(token);
-        }
-
-        this.stack.push(token);
     }
     
     tokenize(str, forEachToken) {
 
-        this.setStack();
-
-        if (forEachToken) {
-            this.forEachToken = forEachToken;
-        }
-        
-        let index = 0;
-        while(index < str.length) {
-         
-            this.consume(str.charAt(index++));
-        }
-        
-        while (this.currentMode !== MODE_NONE) {
-
-            this.completeCurrentMode();
-        }
-        
-        return this.stack;
-    }
-    
-    consume(chr) {
-
-        this[this.currentMode](chr);
-        this.previousChr = chr;
-    }
-    
-    [MODE_NONE](chr) {
-
-        if (!this.matchMap[chr]) {
-
-            this.currentMode = MODE_DEFAULT;
-            return this.consume(chr);
-        }
-
-        this.currentMode = MODE_MATCH;
-        this.toMatch = chr;
+        const tokenizer = new TokenizerInstance(this, str, forEachToken);
+        return tokenizer.tokenize();
     }
 
-    [MODE_DEFAULT](chr) {
+    /**
+     * 
+     * @returns {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
+     */
+    static defaultConfig() {
 
-        if (this.delimiterMap[chr]) {
-
-            return this.completeCurrentMode();
-        }
-
-        this.currentToken+=chr;
-
-        let tokenizeIndex = 0;
-        while(tokenizeIndex < this.tokenizeList.length) {
-            const tokenize = this.tokenizeList[tokenizeIndex++];
-            const suffixIndex = this.currentToken.indexOf(tokenize);
-            if (suffixIndex !== -1) {
-                this.currentToken = this.currentToken.substring(0, suffixIndex);
-                this.completeCurrentMode();
-                return this.push(tokenize);
-            }
-        }
-    }
-
-    [MODE_MATCH](chr) {
-
-        if (chr === this.toMatch) {
-
-            if (this.previousChr !== "\\") {
-                return this.completeCurrentMode();
-            }
-            this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
-        }
-
-        this.currentToken+=chr;
-    }
-    
-    static get Literal() {
-        return Literal;
-    }
-    
-    static get defaultConfig() {
         return defaultConfig;
     }
-};
+}
+
+/**
+ * 
+ * @type {Tokenizer}
+ */
+module.exports = Tokenizer;

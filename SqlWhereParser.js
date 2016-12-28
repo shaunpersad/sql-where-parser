@@ -1,57 +1,11 @@
 "use strict";
 const Tokenizer = require('./Tokenizer');
 
-class ArrayIndex extends Number {}
+const OPERATOR_UNARY_MINUS = Symbol('-');
 
-const OPERATOR_TYPE_UNARY = (indexOfOperatorInExpression, expression) => {
-    const operator = expression[indexOfOperatorInExpression];
-    const operand = expression[indexOfOperatorInExpression + 1];
-    if (operand !== undefined) {
-        return [indexOfOperatorInExpression + 1];
-    }
-    throw new SyntaxError(`${operator.toUpperCase()}" requires an operand.`);
-};
+const OPERATOR_TYPE_UNARY = 1;
 
-const OPERATOR_TYPE_BINARY = (indexOfOperatorInExpression, expression) => {
-
-    const operator = expression[indexOfOperatorInExpression];
-    const operand1 = expression[indexOfOperatorInExpression - 1];
-    const operand2 = expression[indexOfOperatorInExpression + 1];
-    
-    if (operand1 !== undefined && operand2 !== undefined) {
-        return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1];
-    }
-
-    throw new SyntaxError(`${operator.toUpperCase()} requires two operands.`);
-};
-
-const OPERATOR_TYPE_TERNARY_BETWEEN = (indexOfOperatorInExpression, expression) => {
-
-    const AND = module.exports.isLiteral(expression[indexOfOperatorInExpression + 2]);
-    const min = expression[indexOfOperatorInExpression + 1];
-    const max =  expression[indexOfOperatorInExpression + 3];
-
-    if ((typeof AND === 'string') && AND.toUpperCase() === 'AND' && min !== undefined && max !== undefined) {
-        return [indexOfOperatorInExpression - 1, indexOfOperatorInExpression + 1, indexOfOperatorInExpression + 3];
-    }
-    throw new SyntaxError('"BETWEEN" syntax is "BETWEEN {min} AND {max}"')
-};
-
-const OPERATOR_TYPE_BINARY_IN = (indexOfOperatorInExpression, expression) => {
-
-    const operand1 = expression[indexOfOperatorInExpression - 1];
-    const operand2 = expression[indexOfOperatorInExpression + 1];
-
-    if (operand1 !== undefined && operand2 !== undefined && operand2.constructor === Array) {
-        return [indexOfOperatorInExpression - 1, new ArrayIndex(indexOfOperatorInExpression + 1)];
-    }
-
-    throw new SyntaxError('"IN" syntax is "IN({array})"')
-};
-
-const sortNumber = (a, b) => {
-    return a - b;
-};
+const OPERATOR_TYPE_BINARY = 2;
 
 const defaultConfig = {
     operators: [
@@ -73,11 +27,14 @@ const defaultConfig = {
             '>=': OPERATOR_TYPE_BINARY
         },
         {
+            ',': OPERATOR_TYPE_BINARY
+        },
+        {
             'NOT': OPERATOR_TYPE_UNARY
         },
         {
-            'BETWEEN': OPERATOR_TYPE_TERNARY_BETWEEN,
-            'IN': OPERATOR_TYPE_BINARY_IN,
+            'BETWEEN': OPERATOR_TYPE_BINARY,
+            'IN': OPERATOR_TYPE_BINARY,
             'IS': OPERATOR_TYPE_BINARY,
             'LIKE': OPERATOR_TYPE_BINARY
         },
@@ -91,12 +48,11 @@ const defaultConfig = {
     tokenizer: {
         shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>='],
         shouldMatch: ['"', "'", '`'],
-        shouldDelimitBy: [' ', "\n", "\r", "\t"],
-        forEachToken: () => {}
+        shouldDelimitBy: [' ', "\n", "\r", "\t"]
     }
 };
 
-module.exports = class SqlWhereParser {
+class SqlWhereParser {
 
     constructor(config) {
 
@@ -106,231 +62,135 @@ module.exports = class SqlWhereParser {
 
         config = Object.assign({}, config, defaultConfig);
         
-        this.operators = config.operators;
         this.tokenizer = new Tokenizer(config.tokenizer);
-        this.operatorsFlattened = {};
-
-        let precedenceIndex = 0;
-
-        while (precedenceIndex < this.operators.length) {
-
-            const operators = this.operators[precedenceIndex++];
-            Object.assign(this.operatorsFlattened, operators);
-        }
-    }
-
-    /**
-     * Accepts an SQL-like string, parses it, and returns the results.
-     *
-     * results object:
-     * tokens - the tokenized version of the SQL statement.
-     * expression - the array form of the SQL statement, with the precedence explicitly defined by adding appropriate parentheses.
-     * expressionDisplay - the array form of the SQL statement, using only parentheses found in the original SQL. Useful for displaying in front-end.
-     * expressionTree - an array describing the SQL expressions. Useful for converting to object-based query languages, like Mongo, or ES.
-     *
-     * @param {string} sql - An SQL-like string
-     * @returns {{}} results
-     */
-    parse(sql) {
-
-        const expression = [];
-        const expressionDisplay = [];
-
-        const expressionParentheses = [];
-        const expressionDisplayParentheses = [];
-        let lastTokenValue = null;
-
-        const tokens = this.tokenizer.tokenize(`(${sql})`, (token) => {
-
-            switch (token.valueOf()) {
-                case '(':
-                    expressionParentheses.push(expression.length);
-                    expressionDisplayParentheses.push(expressionDisplay.length);
-                    break;
-                case ')':
-                    const precedenceParenthesisIndex = expressionParentheses.pop();
-                    const displayParenthesisIndex = expressionDisplayParentheses.pop();
-
-                    const expressionTokens = expression.splice(precedenceParenthesisIndex, expression.length);
-                    const expressionDisplayTokens = expressionDisplay.splice(displayParenthesisIndex, expressionDisplay.length);
-
-                    expression.push(this.setPrecedenceInExpression(expressionTokens));
-                    expressionDisplay.push(this.constructor.reduceArray(expressionDisplayTokens));
-                    break;
-                case ',':
-
-                    if (!expression[expression.length - 1] || expression[expression.length - 1].constructor !== Array) {
-                        expression[expression.length - 1] = [expression[expression.length - 1]];
-                    }
-                    if (!expressionDisplay[expressionDisplay.length - 1] || expressionDisplay[expressionDisplay.length - 1].constructor !== Array) {
-                        expressionDisplay[expressionDisplay.length - 1] = [expressionDisplay[expressionDisplay.length - 1]];
-                    }
-                    break;
-                case '':
-                    break;
-                default:
-                    if (lastTokenValue === ',') {
-
-                        expression[expression.length - 1].push(token);
-                        expressionDisplay[expressionDisplay.length - 1].push(token);
-                    } else {
-                        expression.push(token);
-                        expressionDisplay.push(token);
-                    }
-                    break;
-            }
-            lastTokenValue = token.valueOf();
-        });
+        this.operators = {};
         
-        return {
-            tokens: tokens,
-            expression: this.constructor.reduceArray(expression),
-            expressionDisplay: this.constructor.reduceArray(expressionDisplay),
-            expressionTree: this.expressionTreeFromExpression(this.constructor.reduceArray(expression))
-        };
-    }
-    
-    /**
-     * Converts the expression array version of an SQL-like statement into an expression tree.
-     *
-     * @param {[]|*} expression
-     * @returns {[]}
-     */
-    expressionTreeFromExpression(expression) {
-
-        if (!expression || expression.constructor !== Array) {
-            return expression;
-        }
-
-        let expressionTree = [];
-        let tokenIndex = 0;
-        
-        while(!expressionTree.length && tokenIndex < expression.length) {
-
-            const token = this.constructor.isLiteral(expression[tokenIndex]);
-
-            if (typeof token === 'string') {
-
-                const potentialOperator = token.toUpperCase();
-                const getOperandIndexes = this.operatorsFlattened[potentialOperator];
-
-                if (getOperandIndexes) {
-
-                    const operands = [];
-                    const operandIndexes = getOperandIndexes(tokenIndex, expression);
-                    let operandIndexesIndex = 0;
-
-                    while (operandIndexesIndex < operandIndexes.length) {
-                        
-                        const operandIndex = operandIndexes[operandIndexesIndex++];
-                        if (operandIndex.constructor === ArrayIndex) {
-                            let elementIndex = 0;
-                            const arrayExpression = [];
-                            
-                            while (elementIndex < expression[operandIndex].length) {
-                                arrayExpression.push(this.expressionTreeFromExpression(expression[operandIndex][elementIndex++]));
-                            }
-                            operands.push(arrayExpression);
-                        } else {
-                            operands.push(this.expressionTreeFromExpression(expression[operandIndex]));
-                        }
-                    }
-                    expressionTree = [potentialOperator, operands];
-                }
-            }
-            tokenIndex++;
-        }
-
-        return expressionTree;
-    }
-
-    /**
-     * Explicitly sets the precedence of the operators.
-     *
-     * This is a necessary step to build the expression tree.
-     *
-     * @param {[]} expression
-     * @returns {[]}
-     */
-    setPrecedenceInExpression(expression) {
-
-        if (!expression || expression.constructor !== Array) {
-            return expression;
-        }
-        
-        let operatorIndex = 0;
-        
-        while (operatorIndex < this.operators.length) {
+        config.operators.forEach((operators, precedence) => {
             
-            const operators = this.operators[operatorIndex++];
+            Object.keys(operators).forEach((operator) => {
+                
+                this.operators[operator] = {
+                    precedence: precedence,
+                    type: operators[operator],
+                    value: operator
+                };
+            });
+        });
+    }
 
-            let tokenIndex = 0;
+    compareOperators(operator1, operator2) {
 
-            while(tokenIndex < expression.length) {
+        return this.operators[operator2].precedence <= this.operators[operator1].precedence;
+    }
 
-                const token = this.constructor.isLiteral(expression[tokenIndex]);
+    getOperator(token) {
 
-                if (typeof token === 'string') {
+        if (typeof token === 'string') {
+            return this.operators[token.toUpperCase()];
+        }
+        return null;
+    }
 
-                    const getOperandIndexes = operators[token.toUpperCase()];
+    defaultEvaluator(expression) {
 
-                    if (getOperandIndexes) {
+        if (expression[',']) {
+            const result = [];
+            return result.concat(expression[','][0] || [], expression[','][1] || []);
+        }
+        return expression;
+    }
 
-                        const operandIndexes = getOperandIndexes(tokenIndex, expression);
-                        const indexesToRemove = [tokenIndex].concat(operandIndexes).sort(sortNumber);
-                        tokenIndex = indexesToRemove[0];
+    /**
+     *
+     * @param {string} sql
+     * @param {function} evaluator
+     * @returns {{}}
+     */
+    parse(sql, evaluator) {
 
-                        expression[tokenIndex] = expression.splice(tokenIndex, indexesToRemove[indexesToRemove.length - 1] - tokenIndex + 1, null);
+        const operatorStack = [];
+        const outputStream = [];
+        
+        if (!evaluator) {
+            evaluator = this.defaultEvaluator;
+        }
+
+        this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
+
+            if (typeof token === 'string' && !surroundedBy) {
+
+                const upperCase = token.toUpperCase();
+
+                if (this.operators[upperCase]) { // is an operator
+
+                    while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.compareOperators(upperCase, operatorStack[operatorStack.length - 1])) {
+
+                        const operator = this.operators[operatorStack.pop()];
+                        const operands = [];
+                        let numOperands = operator.type;
+                        while (numOperands--) {
+                            operands.unshift(outputStream.pop());
+                        }
+                        outputStream.push(evaluator({
+                            [operator.value]: operands
+                        }));
                     }
+                    operatorStack.push(upperCase);
+
+                } else if (token === '(') {
+
+                    operatorStack.push(token);
+
+                } else if (token === ')') {
+
+                    while(operatorStack[operatorStack.length - 1] !== '(') {
+                        
+                        const operator = this.operators[operatorStack.pop()];
+                        const operands = [];
+                        let numOperands = operator.type;
+                        while (numOperands--) {
+                            operands.unshift(outputStream.pop());
+                        }
+                        outputStream.push(evaluator({
+                            [operator.value]: operands
+                        }));
+                    }
+                    operatorStack.pop();
+                } else {
+                    outputStream.push(token);
                 }
-                tokenIndex++;
+            } else {
+                outputStream.push(token);
             }
+        });
+
+        while (operatorStack.length) {
+
+            const operatorValue = operatorStack.pop();
+            if (operatorValue === '(') {
+                throw new SyntaxError('Unmatched parenthesis.');
+            }
+            const operator = this.operators[operatorValue];
+            const operands = [];
+            let numOperands = operator.type;
+            while (numOperands--) {
+                operands.unshift(outputStream.pop());
+            }
+            outputStream.push({
+                [operator.value]: operands
+            });
         }
         
-        return this.constructor.reduceArray(expression);
+        return outputStream.pop();
     }
 
     /**
      * 
-     * @param {String} operator
-     * @returns {function|null}
+     * @returns {{operators: *[], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
      */
-    operatorType(operator) {
-        
-        operator = this.constructor.isLiteral(operator);
-        if (typeof operator !== 'string') {
-            return null;
-        }
-
-        let precedenceIndex = 0;
-        let found = false;
-
-        operator = operator.toUpperCase();
-
-        while(!found && precedenceIndex < this.operators.length) {
-
-            const operators = Object.keys(this.operators[precedenceIndex]);
-            let operatorIndex = 0;
-
-            while (!found && operatorIndex < operators.length) {
-
-                if (operators[operatorIndex] === operator) {
-                    found = this.operators[precedenceIndex][operator];
-                    break;
-                }
-                operatorIndex++;
-            }
-            precedenceIndex++;
-        }
-
-        return found ? found : null;
+    static get defaultConfig() {
+        return defaultConfig;
     }
-
-    static isLiteral(token) {
-        
-        return (token instanceof Tokenizer.Literal) ? token.valueOf() : false;
-    }
-
     /**
      * Reduces a nested array recursively.
      *
@@ -346,75 +206,14 @@ module.exports = class SqlWhereParser {
         return arr;
     }
     
-    /**
-     * Defines an operator of unary type.
-     *
-     * It is a function that returns the indexes of the operator's single operand.
-     *
-     * @returns {function()}
-     * @constructor
-     */
-    static get OPERATOR_TYPE_UNARY() {
-        return OPERATOR_TYPE_UNARY;
-    }
-
-    /**
-     * Defines an operator of binary type.
-     *
-     * It is a function that returns the indexes of the operator's two operands.
-     *
-     * @returns {function()}
-     * @constructor
-     */
-    static get OPERATOR_TYPE_BINARY() {
-        return OPERATOR_TYPE_BINARY;
-    }
-
-    /**
-     * Defines an operator of IN type.
-     *
-     * The IN operator is unique in that the second argument must be an array.
-     * 
-     * @returns {function()}
-     * @constructor
-     */
-    static get OPERATOR_TYPE_BINARY_IN() {
-        return OPERATOR_TYPE_BINARY_IN;
-    }
-
-    /**
-     * Defines an operator of BETWEEN type.
-     *
-     * The BETWEEN operator is unique in where its operands are, so it requires defining a new type,
-     * which is a function that returns the indexes of the operator's three operands.
-     *
-     * @returns {function()}
-     * @constructor
-     */
-    static get OPERATOR_TYPE_TERNARY_BETWEEN() {
-        return OPERATOR_TYPE_TERNARY_BETWEEN;
-    }
-
-    /**
-     * Use this instead of a Number when defining your own operator types, if the operand should be an array.
-     *
-     * @returns {ArrayIndex}
-     * @constructor
-     */
-    static get ArrayIndex() {
-        return ArrayIndex;
-    }
-    
     static get Tokenizer() {
         return Tokenizer;
     }
-    
-    static get defaultConfig() {
-        return defaultConfig;
-    }
-};
+}
 
-// const sql = 'city IN (A, B)';
-// const parser = new module.exports();
-// const parsed = parser.parse(sql);
-// console.log(JSON.stringify(parsed));
+module.exports = SqlWhereParser;
+
+const sql = 'A = B and C IS NOT NULL';
+const parser = new SqlWhereParser();
+console.log(JSON.stringify(parser.parse(sql)));
+
