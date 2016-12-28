@@ -1,14 +1,37 @@
 "use strict";
+
 const Tokenizer = require('./Tokenizer');
 
-const OPERATOR_UNARY_MINUS = Symbol('-');
+/**
+ *
+ * @type {Symbol}
+ */
+const OPERATOR_UNARY_MINUS = Symbol('-'); // TODO: handle unary minus
 
+/**
+ *
+ * @type {number}
+ */
 const OPERATOR_TYPE_UNARY = 1;
 
+/**
+ *
+ * @type {number}
+ */
 const OPERATOR_TYPE_BINARY = 2;
 
+/**
+ *
+ * @type {number}
+ */
+const OPERATOR_TYPE_TERNARY = 3;
+
+/**
+ *
+ * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
+ */
 const defaultConfig = {
-    operators: [
+    operators: [ // TODO: add more operators
         {
             '*': OPERATOR_TYPE_BINARY,
             '/': OPERATOR_TYPE_BINARY,
@@ -33,7 +56,7 @@ const defaultConfig = {
             'NOT': OPERATOR_TYPE_UNARY
         },
         {
-            'BETWEEN': OPERATOR_TYPE_BINARY,
+            'BETWEEN': OPERATOR_TYPE_TERNARY,
             'IN': OPERATOR_TYPE_BINARY,
             'IS': OPERATOR_TYPE_BINARY,
             'LIKE': OPERATOR_TYPE_BINARY
@@ -54,6 +77,10 @@ const defaultConfig = {
 
 class SqlWhereParser {
 
+    /**
+     *
+     * @param {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}} [config]
+     */
     constructor(config) {
 
         if (!config) {
@@ -61,8 +88,17 @@ class SqlWhereParser {
         }
 
         config = Object.assign({}, config, defaultConfig);
-        
+
+        /**
+         *
+         * @type {Tokenizer}
+         */
         this.tokenizer = new Tokenizer(config.tokenizer);
+
+        /**
+         *
+         * @type {{}}
+         */
         this.operators = {};
         
         config.operators.forEach((operators, precedence) => {
@@ -78,11 +114,22 @@ class SqlWhereParser {
         });
     }
 
+    /**
+     *
+     * @param {string} operator1
+     * @param {string} operator2
+     * @returns {boolean}
+     */
     compareOperators(operator1, operator2) {
 
         return this.operators[operator2].precedence <= this.operators[operator1].precedence;
     }
 
+    /**
+     *
+     * @param token
+     * @returns {*}
+     */
     getOperator(token) {
 
         if (typeof token === 'string') {
@@ -91,11 +138,16 @@ class SqlWhereParser {
         return null;
     }
 
+    /**
+     *
+     * @param {{}} expression
+     * @returns {*}
+     */
     defaultEvaluator(expression) {
 
         if (expression[',']) {
             const result = [];
-            return result.concat(expression[','][0] || [], expression[','][1] || []);
+            return result.concat(expression[','][0], expression[','][1]);
         }
         return expression;
     }
@@ -103,13 +155,14 @@ class SqlWhereParser {
     /**
      *
      * @param {string} sql
-     * @param {function} evaluator
+     * @param {function} [evaluator]
      * @returns {{}}
      */
     parse(sql, evaluator) {
 
         const operatorStack = [];
         const outputStream = [];
+        let lastOperator = null;
         
         if (!evaluator) {
             evaluator = this.defaultEvaluator;
@@ -122,6 +175,11 @@ class SqlWhereParser {
                 const upperCase = token.toUpperCase();
 
                 if (this.operators[upperCase]) { // is an operator
+                    
+                    if (lastOperator === 'BETWEEN' && upperCase === 'AND') { // hard-coded rule for between
+                        lastOperator = 'AND';
+                        return;
+                    }
 
                     while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.compareOperators(upperCase, operatorStack[operatorStack.length - 1])) {
 
@@ -136,6 +194,7 @@ class SqlWhereParser {
                         }));
                     }
                     operatorStack.push(upperCase);
+                    lastOperator = upperCase;
 
                 } else if (token === '(') {
 
@@ -186,34 +245,17 @@ class SqlWhereParser {
 
     /**
      * 
-     * @returns {{operators: *[], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
+     * @returns {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
      */
-    static get defaultConfig() {
+    static defaultConfig() {
         return defaultConfig;
-    }
-    /**
-     * Reduces a nested array recursively.
-     *
-     * @param {[]} arr
-     * @returns {[]}
-     */
-    static reduceArray(arr) {
-        
-        while(arr && arr.constructor === Array && arr.length === 1) {
-            arr = arr[0];
-        }
-        
-        return arr;
-    }
-    
-    static get Tokenizer() {
-        return Tokenizer;
     }
 }
 
 module.exports = SqlWhereParser;
 
-const sql = 'A = B and C IS NOT NULL';
+const start = Date.now();
+const sql = 'A BETWEEN 1 AND 2 AND x = y';
 const parser = new SqlWhereParser();
 console.log(JSON.stringify(parser.parse(sql)));
-
+console.log(Date.now() - start);

@@ -188,7 +188,7 @@ class Tokenizer {
 
     /**
      * 
-     * @param {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}} config
+     * @param {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}} [config]
      */
     constructor(config) {
 
