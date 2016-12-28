@@ -3,30 +3,35 @@ const Symbol = require('es6-symbol');
 const Tokenizer = require('./Tokenizer');
 
 /**
+ * To distinguish between the binary minus and unary.
  *
  * @type {Symbol}
  */
 const OPERATOR_UNARY_MINUS = Symbol('-');
 
 /**
+ * Number of operands in a unary operation.
  *
  * @type {number}
  */
 const OPERATOR_TYPE_UNARY = 1;
 
 /**
+ * Number of operands in a binary operation.
  *
  * @type {number}
  */
 const OPERATOR_TYPE_BINARY = 2;
 
 /**
+ * Number of operands in a ternary operation.
  *
  * @type {number}
  */
 const OPERATOR_TYPE_TERNARY = 3;
 
 /**
+ * Defining the use of the unary minus.
  *
  * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
  */
@@ -34,8 +39,13 @@ const unaryMinusDefinition = {
     [OPERATOR_UNARY_MINUS]: OPERATOR_TYPE_UNARY
 };
 
+/**
+ * The default config used.
+ * 
+ * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
+ */
 const defaultConfig = {
-    operators: [ // TODO: add more operators
+    operators: [ // TODO: add more operator definitions
         {
             '!': OPERATOR_TYPE_UNARY
         },
@@ -61,7 +71,7 @@ const defaultConfig = {
             '!=': OPERATOR_TYPE_BINARY
         },
         {
-            ',': OPERATOR_TYPE_BINARY
+            ',': OPERATOR_TYPE_BINARY // We treat commas as an operator, to aid in turning arbitrary numbers of comma-separated values into arrays.
         },
         {
             'NOT': OPERATOR_TYPE_UNARY
@@ -86,6 +96,9 @@ const defaultConfig = {
     }
 };
 
+/**
+ * A wrapper class around operators to distinguish them from regular tokens.
+ */
 class Operator {
     
     constructor(value, type, precedence) {
@@ -101,6 +114,9 @@ class Operator {
     }
 }
 
+/**
+ * The main parser class.
+ */
 class SqlWhereParser {
 
     /**
@@ -113,6 +129,10 @@ class SqlWhereParser {
             config = {};
         }
 
+        /**
+         *
+         * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
+         */
         config = Object.assign({}, config, defaultConfig);
 
         /**
@@ -126,7 +146,11 @@ class SqlWhereParser {
          * @type {{}}
          */
         this.operators = {};
-        
+
+        /**
+         * Flattens the operator definitions into a single object,
+         * whose keys are the operators, and the values are the Operator class wrappers.
+         */
         config.operators.forEach((operators, precedence) => {
             
             Object.keys(operators).concat(Object.getOwnPropertySymbols(operators)).forEach((operator) => {
@@ -168,7 +192,10 @@ class SqlWhereParser {
      * @returns {*}
      */
     defaultEvaluator(operator, operands) {
-        
+
+        /**
+         * Convert back to regular minus, now that we have the proper number of operands.
+         */
         if (operator === OPERATOR_UNARY_MINUS) {
             operator = '-';
         }
@@ -209,8 +236,6 @@ class SqlWhereParser {
         this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
 
             tokenCount++;
-            
-            //console.log(token);
 
             /**
              * Read a token.
@@ -292,6 +317,9 @@ class SqlWhereParser {
                         
                         outputStream.push(evaluator(operator.value, operands));
                     }
+                    if (!operatorStack.length) {
+                        throw new SyntaxError('Unmatched parenthesis.');
+                    }
                     /**
                      * Pop the left parenthesis from the stack, but not onto the output queue.
                      */
@@ -340,6 +368,10 @@ class SqlWhereParser {
              * Pop the operator onto the output queue.
              */
             outputStream.push(evaluator(operator.value, operands));
+        }
+        
+        if (outputStream.length > 1) {
+            throw new SyntaxError('Could not reduce to a single expression.');
         }
         
         return outputStream[0];
@@ -399,11 +431,11 @@ class SqlWhereParser {
     static get defaultConfig() {
         return defaultConfig;
     }
-    
+
     static get Operator() {
         return Operator;
     }
-    
+
     static get OPERATOR_UNARY_MINUS() {
         return OPERATOR_UNARY_MINUS;
     }
@@ -414,7 +446,3 @@ class SqlWhereParser {
  * @type {SqlWhereParser}
  */
 module.exports = SqlWhereParser;
-
-const sql = ' A != !B';
-const parser = new SqlWhereParser();
-console.log(JSON.stringify(parser.parse(sql)));

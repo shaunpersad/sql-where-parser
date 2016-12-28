@@ -4,7 +4,14 @@ const MODE_NONE = 'modeNone';
 const MODE_DEFAULT = 'modeDefault';
 const MODE_MATCH = 'modeMatch';
 
-const sortTokens = (a, b) => {
+/**
+ * Sorts the tokenizable substrings by their length DESC.
+ * 
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+const sortTokenizables = (a, b) => {
     
     if (a.length > b.length) {
         return -1;
@@ -15,13 +22,20 @@ const sortTokens = (a, b) => {
     return 0;
 };
 
+/**
+ * The default config used.
+ *
+ * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
+ */
 const defaultConfig = {
     shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>=', '!'],
     shouldMatch: ['"', "'", '`'],
     shouldDelimitBy: [' ', "\n", "\r", "\t"]
 };
 
-
+/**
+ * Create an instance of this class for each new string you wish to parse.
+ */
 class TokenizerInstance {
 
     /**
@@ -32,13 +46,55 @@ class TokenizerInstance {
      */
     constructor(tokenizer, str, forEachToken) {
 
+        /**
+         * Holds the processed configuration of the tokenizer.
+         *
+         * @type {Tokenizer}
+         */
         this.tokenizer = tokenizer;
+
+        /**
+         * The string to tokenize.
+         *
+         * @type {string}
+         */
         this.str = str;
+
+        /**
+         * The function to call for teach token.
+         *
+         * @type {Function}
+         */
         this.forEachToken = forEachToken;
 
+        /**
+         * The previous character consumed.
+         *
+         * @type {string}
+         */
         this.previousChr = '';
+
+        /**
+         * The current quote to match.
+         *
+         * @type {string}
+         */
         this.toMatch = '';
+
+        /**
+         * The current token being created.
+         *
+         * @type {string}
+         */
         this.currentToken = '';
+
+        /**
+         * Keeps track of the current "mode" of tokenization.
+         * The tokenization rules are different depending if you are tokenizing an explicit string (surrounded by quotes),
+         * versus a non-explicit string (not surrounded by quotes).
+         *
+         * @type {*[]}
+         */
         this.modeStack = [MODE_NONE];
     }
 
@@ -73,6 +129,9 @@ class TokenizerInstance {
             this.pushDefaultModeTokenizables();
         }
 
+        /**
+         * Don't push out empty tokens, unless they were an explicit string, e.g. ""
+         */
         if ((currentMode === MODE_MATCH && this.currentToken === '') || this.currentToken !== '') {
             this.push(this.currentToken);
         }
@@ -88,7 +147,12 @@ class TokenizerInstance {
     push(token) {
 
         let surroundedBy = '';
+
         if (this.getCurrentMode() !== MODE_MATCH) {
+
+            /**
+             * Convert the string version of literals into their...literal..form.
+             */
             switch(token.toLowerCase()) {
                 case 'null':
                     token = null;
@@ -106,6 +170,12 @@ class TokenizerInstance {
                     break;
             }
         } else {
+
+            /**
+             * The purpose of also transmitting the surroundedBy quote is to inform whether or not the token was an explicit string,
+             * versus a non-explicit string, e.g. "=" vs. =
+             * @type {string}
+             */
             surroundedBy = this.toMatch;
         }
 
@@ -117,6 +187,7 @@ class TokenizerInstance {
     tokenize() {
 
         let index = 0;
+
         while(index < this.str.length) {
 
             this.consume(this.str.charAt(index++));
@@ -171,18 +242,29 @@ class TokenizerInstance {
 
         return this.currentToken;
     }
-    
+
+    /**
+     * This crazy function parses out potential tokenizable substrings out of the current token.
+     *
+     * @returns {*}
+     */
     pushDefaultModeTokenizables() {
 
         let tokenizeIndex = 0;
         let lowestIndexOfTokenize = Infinity;
         let toTokenize = null;
 
+        /**
+         * Iterate through the list of tokenizable substrings.
+         */
         while(this.currentToken && tokenizeIndex < this.tokenizer.tokenizeList.length) {
 
             const tokenize = this.tokenizer.tokenizeList[tokenizeIndex++];
             const indexOfTokenize = this.currentToken.indexOf(tokenize);
 
+            /**
+             * Find the substring closest to the beginning of the current token.
+             */
             if (indexOfTokenize !== -1 && indexOfTokenize < lowestIndexOfTokenize) {
 
                 lowestIndexOfTokenize = indexOfTokenize;
@@ -190,14 +272,25 @@ class TokenizerInstance {
             }
         }
 
+        /**
+         * No substrings to tokenize.  You're done.
+         */
         if (!toTokenize) {
             return;
         }
 
+        /**
+         * A substring was found, but not at the very beginning of the string, e.g. A=B, where "=" is the substring.
+         * This will push out "A" first.
+         */
         if (lowestIndexOfTokenize > 0) {
             this.push(this.currentToken.substring(0, lowestIndexOfTokenize));
         }
 
+        /**
+         * Push out the substring, then modify the current token to be everything past that substring.
+         * Recursively call this function again until there are no more substrings to tokenize.
+         */
         if (lowestIndexOfTokenize !== -1) {
 
             this.push(toTokenize);
@@ -225,6 +318,9 @@ class TokenizerInstance {
     }
 }
 
+/**
+ * This is the main class.  It takes in the config, processes it, and creates tokenizer instances based on that config.
+ */
 class Tokenizer {
 
     /**
@@ -237,15 +333,59 @@ class Tokenizer {
             config = {};
         }
 
+        /**
+         *
+         * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
+         */
         config = Object.assign({}, config, defaultConfig);
+
+        /**
+         * Holds the list of tokenizable substrings.
+         *
+         * @type {Array}
+         */
         this.tokenizeList = [];
+
+        /**
+         * Holds an easy lookup map of tokenizable substrings.
+         *
+         * @type {{}}
+         */
         this.tokenizeMap = {};
+
+        /**
+         * Holds the list of quotes to match explicit strings with.
+         *
+         * @type {Array}
+         */
         this.matchList = [];
+
+        /**
+         * Holds an easy lookup map of quotes to match explicit strings with.
+         *
+         * @type {{}}
+         */
         this.matchMap = {};
+
+        /**
+         * Holds the list of delimiters.
+         *
+         * @type {Array}
+         */
         this.delimiterList = [];
+
+        /**
+         * Holds an easy lookup map of delimiters.
+         *
+         * @type {{}}
+         */
         this.delimiterMap = {};
 
-        config.shouldTokenize.sort(sortTokens).forEach((token) => {
+        /**
+         * Sorts the tokenizable substrings based on their length,
+         * such that "<=" will get matched before "<" does.
+         */
+        config.shouldTokenize.sort(sortTokenizables).forEach((token) => {
 
             this.tokenizeList.push(token);
             this.tokenizeMap[token] = token;
@@ -263,7 +403,14 @@ class Tokenizer {
             this.delimiterMap[delimiter] = delimiter;
         });
     }
-    
+
+    /**
+     * Creates a TokenizerInstance, then immediately calls "tokenize".
+     *
+     * @param {string} str
+     * @param {function} forEachToken
+     * @returns {*}
+     */
     tokenize(str, forEachToken) {
 
         const tokenizerInstance = new TokenizerInstance(this, str, forEachToken);
