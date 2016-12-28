@@ -6,7 +6,7 @@ const Tokenizer = require('./Tokenizer');
  *
  * @type {Symbol}
  */
-const OPERATOR_UNARY_MINUS = Symbol('-'); // TODO: handle unary minus
+const OPERATOR_UNARY_MINUS = Symbol('-');
 
 /**
  *
@@ -30,7 +30,7 @@ const OPERATOR_TYPE_TERNARY = 3;
  *
  * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
  */
-const unaryMinus = {
+const unaryMinusDefinition = {
     [OPERATOR_UNARY_MINUS]: OPERATOR_TYPE_UNARY
 };
 
@@ -39,7 +39,7 @@ const defaultConfig = {
         {
             '!': OPERATOR_TYPE_UNARY
         },
-        unaryMinus,
+        unaryMinusDefinition,
         {
             '^': OPERATOR_TYPE_BINARY
         },
@@ -85,6 +85,21 @@ const defaultConfig = {
     }
 };
 
+class Operator {
+    
+    constructor(value, type, precedence) {
+        this.value = value;
+        this.type = type;
+        this.precedence = precedence;
+    }
+    toJSON() {
+        return this.value;
+    }
+    toString() {
+        return `${this.value}`;
+    }
+}
+
 class SqlWhereParser {
 
     /**
@@ -114,12 +129,8 @@ class SqlWhereParser {
         config.operators.forEach((operators, precedence) => {
             
             Object.keys(operators).concat(Object.getOwnPropertySymbols(operators)).forEach((operator) => {
-                
-                this.operators[operator] = {
-                    precedence: precedence,
-                    type: operators[operator],
-                    value: operator
-                };
+
+                this.operators[operator] = new Operator(operator, operators[operator], precedence);
             });
         });
     }
@@ -148,25 +159,28 @@ class SqlWhereParser {
         return null;
     }
 
+
     /**
      *
-     * @param {{}} expression
+     * @param {string|Symbol} operator
+     * @param {[]} operands
      * @returns {*}
      */
-    defaultEvaluator(expression) {
+    defaultEvaluator(operator, operands) {
         
-        if (expression[OPERATOR_UNARY_MINUS]) {
-            expression['-'] = expression[OPERATOR_UNARY_MINUS];
+        if (operator === OPERATOR_UNARY_MINUS) {
+            operator = '-';
         }
-
         /**
          * This is a trick to avoid the problem of inconsistent comma usage in SQL.
          */
-        if (expression[',']) {
-            const result = [];
-            return result.concat(expression[','][0], expression[','][1]);
+        if (operator === ',') {
+            return [].concat(operands[0], operands[1]);
         }
-        return expression;
+
+        return {
+            [operator]: operands
+        };
     }
 
     /**
@@ -236,9 +250,7 @@ class SqlWhereParser {
                         while (numOperands--) {
                             operands.unshift(outputStream.pop());
                         }
-                        outputStream.push(evaluator({
-                            [operator.value]: operands
-                        }));
+                        outputStream.push(evaluator(operator.value, operands));
                     }
 
                     /**
@@ -274,9 +286,8 @@ class SqlWhereParser {
                         while (numOperands--) {
                             operands.unshift(outputStream.pop());
                         }
-                        outputStream.push(evaluator({
-                            [operator.value]: operands
-                        }));
+                        
+                        outputStream.push(evaluator(operator.value, operands));
                     }
                     /**
                      * Pop the left parenthesis from the stack, but not onto the output queue.
@@ -325,12 +336,52 @@ class SqlWhereParser {
             /**
              * Pop the operator onto the output queue.
              */
-            outputStream.push({
-                [operator.value]: operands
-            });
+            outputStream.push(evaluator(operator.value, operands));
         }
         
         return outputStream[0];
+    }
+
+    toArray(sql) {
+
+        let expression = [];
+        const expressionParentheses = [];
+
+        this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
+
+            switch (token) {
+                case '(':
+                    expressionParentheses.push(expression.length);
+                    break;
+                case ')':
+                    const precedenceParenthesisIndex = expressionParentheses.pop();
+
+                    let expressionTokens = expression.splice(precedenceParenthesisIndex, expression.length);
+
+                    while(expressionTokens && expressionTokens.constructor === Array && expressionTokens.length === 1) {
+                        expressionTokens = expressionTokens[0];
+                    }
+                    expression.push(expressionTokens);
+                    break;
+                case '':
+                    break;
+                case ',':
+                    break;
+                default:
+                    let operator = null;
+                    if (!surroundedBy) {
+                        operator = this.getOperator(token);
+                    }
+                    expression.push(operator ? operator : token);
+                    break;
+            }
+        });
+
+        while(expression && expression.constructor === Array && expression.length === 1) {
+            expression = expression[0];
+        }
+        
+        return expression;
     }
 
     /**
@@ -341,6 +392,10 @@ class SqlWhereParser {
         return defaultConfig;
     }
 
+    static get Operator() {
+        return Operator;
+    }
+    
     static get OPERATOR_UNARY_MINUS() {
         return OPERATOR_UNARY_MINUS;
     }
@@ -349,7 +404,7 @@ class SqlWhereParser {
 module.exports = SqlWhereParser;
 
 const start = Date.now();
-const sql = '1 + (-2 - -7) - 4';
+const sql = 'A IN (true, false, NULl)';
 const parser = new SqlWhereParser();
 console.log(JSON.stringify(parser.parse(sql)));
 console.log(Date.now() - start);
