@@ -1,5 +1,5 @@
 "use strict";
-
+const Symbol = require('es6-symbol');
 const Tokenizer = require('./Tokenizer');
 
 /**
@@ -30,8 +30,19 @@ const OPERATOR_TYPE_TERNARY = 3;
  *
  * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
  */
+const unaryMinus = {
+    [OPERATOR_UNARY_MINUS]: OPERATOR_TYPE_UNARY
+};
+
 const defaultConfig = {
     operators: [ // TODO: add more operators
+        {
+            '!': OPERATOR_TYPE_UNARY
+        },
+        unaryMinus,
+        {
+            '^': OPERATOR_TYPE_BINARY
+        },
         {
             '*': OPERATOR_TYPE_BINARY,
             '/': OPERATOR_TYPE_BINARY,
@@ -43,7 +54,6 @@ const defaultConfig = {
         },
         {
             '=': OPERATOR_TYPE_BINARY,
-            '!=': OPERATOR_TYPE_BINARY,
             '<': OPERATOR_TYPE_BINARY,
             '>': OPERATOR_TYPE_BINARY,
             '<=': OPERATOR_TYPE_BINARY,
@@ -103,7 +113,7 @@ class SqlWhereParser {
         
         config.operators.forEach((operators, precedence) => {
             
-            Object.keys(operators).forEach((operator) => {
+            Object.keys(operators).concat(Object.getOwnPropertySymbols(operators)).forEach((operator) => {
                 
                 this.operators[operator] = {
                     precedence: precedence,
@@ -144,7 +154,14 @@ class SqlWhereParser {
      * @returns {*}
      */
     defaultEvaluator(expression) {
+        
+        if (expression[OPERATOR_UNARY_MINUS]) {
+            expression['-'] = expression[OPERATOR_UNARY_MINUS];
+        }
 
+        /**
+         * This is a trick to avoid the problem of inconsistent comma usage in SQL.
+         */
         if (expression[',']) {
             const result = [];
             return result.concat(expression[','][0], expression[','][1]);
@@ -162,26 +179,56 @@ class SqlWhereParser {
 
         const operatorStack = [];
         const outputStream = [];
-        let lastOperator = null;
+        let lastOperator = undefined;
+        let tokenCount = 0;
+        let lastTokenWasOperatorOrLeftParenthesis = false;
         
         if (!evaluator) {
             evaluator = this.defaultEvaluator;
         }
 
+        /**
+         * The following mess is an implementation of the Shunting-Yard Algorithm: http://wcipeg.com/wiki/Shunting_yard_algorithm
+         * See also: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+         */
         this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
+
+            tokenCount++;
+
+            /**
+             * Read a token.
+             */
 
             if (typeof token === 'string' && !surroundedBy) {
 
-                const upperCase = token.toUpperCase();
+                let normalizedToken = token.toUpperCase();
 
-                if (this.operators[upperCase]) { // is an operator
-                    
-                    if (lastOperator === 'BETWEEN' && upperCase === 'AND') { // hard-coded rule for between
+                /**
+                 * If the token is an operator, o1, then:
+                 */
+                if (this.operators[normalizedToken]) {
+
+                    /**
+                     * Hard-coded rule for between to ignore the next AND.
+                     */
+                    if (lastOperator === 'BETWEEN' && normalizedToken === 'AND') {
                         lastOperator = 'AND';
                         return;
                     }
 
-                    while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.compareOperators(upperCase, operatorStack[operatorStack.length - 1])) {
+                    /**
+                     * If the conditions are right for unary minus, convert it.
+                     */
+                    if (normalizedToken === '-' && (tokenCount === 1 || lastTokenWasOperatorOrLeftParenthesis)) {
+                        normalizedToken = OPERATOR_UNARY_MINUS;
+                    }
+
+                    /**
+                     * While there is an operator token o2 at the top of the operator stack,
+                     * and o1's precedence is less than or equal to that of o2,
+                     * pop o2 off the operator stack, onto the output queue:
+                     */
+                    while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.compareOperators(normalizedToken, operatorStack[operatorStack.length - 1])) {
 
                         const operator = this.operators[operatorStack.pop()];
                         const operands = [];
@@ -193,16 +240,33 @@ class SqlWhereParser {
                             [operator.value]: operands
                         }));
                     }
-                    operatorStack.push(upperCase);
-                    lastOperator = upperCase;
 
+                    /**
+                     * At the end of iteration push o1 onto the operator stack.
+                     */
+                    operatorStack.push(normalizedToken);
+                    lastOperator = normalizedToken;
+
+                    lastTokenWasOperatorOrLeftParenthesis = true;
+
+                    /**
+                     * If the token is a left parenthesis (i.e. "("), then push it onto the stack:
+                     */
                 } else if (token === '(') {
 
                     operatorStack.push(token);
+                    lastTokenWasOperatorOrLeftParenthesis = true;
 
+                    /**
+                     * If the token is a right parenthesis (i.e. ")"):
+                     */
                 } else if (token === ')') {
 
-                    while(operatorStack[operatorStack.length - 1] !== '(') {
+                    /**
+                     * Until the token at the top of the stack is a left parenthesis,
+                     * pop operators off the stack onto the output queue.
+                     */
+                    while(operatorStack.length && operatorStack[operatorStack.length - 1] !== '(') {
                         
                         const operator = this.operators[operatorStack.pop()];
                         const operands = [];
@@ -214,18 +278,40 @@ class SqlWhereParser {
                             [operator.value]: operands
                         }));
                     }
+                    /**
+                     * Pop the left parenthesis from the stack, but not onto the output queue.
+                     */
                     operatorStack.pop();
+                    lastTokenWasOperatorOrLeftParenthesis = false;
+
+                    /**
+                     * Push everything else to the output queue.
+                     */
                 } else {
                     outputStream.push(token);
+                    lastTokenWasOperatorOrLeftParenthesis = false;
                 }
+
+                /**
+                 * Push explicit strings to the output queue.
+                 */
             } else {
                 outputStream.push(token);
+                lastTokenWasOperatorOrLeftParenthesis = false;
             }
         });
 
+
+        /**
+         * While there are still operator tokens in the stack:
+         */
         while (operatorStack.length) {
 
             const operatorValue = operatorStack.pop();
+
+            /**
+             * If the operator token on the top of the stack is a parenthesis, then there are mismatched parentheses.
+             */
             if (operatorValue === '(') {
                 throw new SyntaxError('Unmatched parenthesis.');
             }
@@ -235,27 +321,35 @@ class SqlWhereParser {
             while (numOperands--) {
                 operands.unshift(outputStream.pop());
             }
+
+            /**
+             * Pop the operator onto the output queue.
+             */
             outputStream.push({
                 [operator.value]: operands
             });
         }
         
-        return outputStream.pop();
+        return outputStream[0];
     }
 
     /**
      * 
      * @returns {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
      */
-    static defaultConfig() {
+    static get defaultConfig() {
         return defaultConfig;
+    }
+
+    static get OPERATOR_UNARY_MINUS() {
+        return OPERATOR_UNARY_MINUS;
     }
 }
 
 module.exports = SqlWhereParser;
 
 const start = Date.now();
-const sql = 'A BETWEEN 1 AND 2 AND x = y';
+const sql = '1 + (-2 - -7) - 4';
 const parser = new SqlWhereParser();
 console.log(JSON.stringify(parser.parse(sql)));
 console.log(Date.now() - start);

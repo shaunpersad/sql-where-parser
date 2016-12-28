@@ -225,15 +225,15 @@ class Tokenizer {
     
     tokenize(str, forEachToken) {
 
-        const tokenizer = new TokenizerInstance(this, str, forEachToken);
-        return tokenizer.tokenize();
+        const tokenizerInstance = new TokenizerInstance(this, str, forEachToken);
+        return tokenizerInstance.tokenize();
     }
 
     /**
      * 
      * @returns {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
      */
-    static defaultConfig() {
+    static get defaultConfig() {
 
         return defaultConfig;
     }
