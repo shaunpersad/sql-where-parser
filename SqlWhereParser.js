@@ -162,57 +162,6 @@ class SqlWhereParser {
 
     /**
      *
-     * @param {string} operator1
-     * @param {string} operator2
-     * @returns {boolean}
-     */
-    compareOperators(operator1, operator2) {
-
-        return this.operators[operator2].precedence <= this.operators[operator1].precedence;
-    }
-
-    /**
-     *
-     * @param token
-     * @returns {*}
-     */
-    getOperator(token) {
-
-        if (typeof token === 'string') {
-            return this.operators[token.toUpperCase()];
-        }
-        return null;
-    }
-
-
-    /**
-     *
-     * @param {string|Symbol} operator
-     * @param {[]} operands
-     * @returns {*}
-     */
-    defaultEvaluator(operator, operands) {
-
-        /**
-         * Convert back to regular minus, now that we have the proper number of operands.
-         */
-        if (operator === OPERATOR_UNARY_MINUS) {
-            operator = '-';
-        }
-        /**
-         * This is a trick to avoid the problem of inconsistent comma usage in SQL.
-         */
-        if (operator === ',') {
-            return [].concat(operands[0], operands[1]);
-        }
-
-        return {
-            [operator]: operands
-        };
-    }
-
-    /**
-     *
      * @param {string} sql
      * @param {function} [evaluator]
      * @returns {{}}
@@ -224,7 +173,7 @@ class SqlWhereParser {
         let lastOperator = undefined;
         let tokenCount = 0;
         let lastTokenWasOperatorOrLeftParenthesis = false;
-        
+
         if (!evaluator) {
             evaluator = this.defaultEvaluator;
         }
@@ -270,7 +219,7 @@ class SqlWhereParser {
                      * and o1's precedence is less than or equal to that of o2,
                      * pop o2 off the operator stack, onto the output queue:
                      */
-                    while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.compareOperators(normalizedToken, operatorStack[operatorStack.length - 1])) {
+                    while (operatorStack[operatorStack.length - 1] && operatorStack[operatorStack.length - 1] !== '(' && this.operatorPrecedenceFromValues(normalizedToken, operatorStack[operatorStack.length - 1])) {
 
                         const operator = this.operators[operatorStack.pop()];
                         const operands = [];
@@ -307,14 +256,14 @@ class SqlWhereParser {
                      * pop operators off the stack onto the output queue.
                      */
                     while(operatorStack.length && operatorStack[operatorStack.length - 1] !== '(') {
-                        
+
                         const operator = this.operators[operatorStack.pop()];
                         const operands = [];
                         let numOperands = operator.type;
                         while (numOperands--) {
                             operands.unshift(outputStream.pop());
                         }
-                        
+
                         outputStream.push(evaluator(operator.value, operands));
                     }
                     if (!operatorStack.length) {
@@ -369,11 +318,11 @@ class SqlWhereParser {
              */
             outputStream.push(evaluator(operator.value, operands));
         }
-        
+
         if (outputStream.length > 1) {
             throw new SyntaxError('Could not reduce to a single expression.');
         }
-        
+
         return outputStream[0];
     }
 
@@ -385,10 +334,14 @@ class SqlWhereParser {
     toArray(sql) {
 
         let expression = [];
+        let tokenCount = 0;
+        let lastToken = undefined;
         const expressionParentheses = [];
 
         this.tokenizer.tokenize(`(${sql})`, (token, surroundedBy) => {
-
+            
+            tokenCount++;
+            
             switch (token) {
                 case '(':
                     expressionParentheses.push(expression.length);
@@ -411,17 +364,75 @@ class SqlWhereParser {
                     let operator = null;
                     if (!surroundedBy) {
                         operator = this.getOperator(token);
+                        if (token === '-' && (tokenCount === 1 || (lastToken === '(' || (lastToken && lastToken.constructor === Operator)))) {
+                            operator = this.getOperator(OPERATOR_UNARY_MINUS);
+                        }
                     }
                     expression.push(operator ? operator : token);
                     break;
             }
+            lastToken = token;
         });
 
         while(expression && expression.constructor === Array && expression.length === 1) {
             expression = expression[0];
         }
-        
+
         return expression;
+    }
+
+    /**
+     *
+     * @param {string|Symbol} operatorValue1
+     * @param {string|Symbol} operatorValue2
+     * @returns {boolean}
+     */
+    operatorPrecedenceFromValues(operatorValue1, operatorValue2) {
+
+        return this.operators[operatorValue2].precedence <= this.operators[operatorValue1].precedence;
+    }
+
+    /**
+     *
+     * @param {string|Symbol} operatorValue
+     * @returns {*}
+     */
+    getOperator(operatorValue) {
+
+        if (typeof operatorValue === 'string') {
+            return this.operators[operatorValue.toUpperCase()];
+        }
+        if (typeof operatorValue === 'symbol') {
+            return this.operators[operatorValue];
+        }
+        return null;
+    }
+
+
+    /**
+     *
+     * @param {string|Symbol} operatorValue
+     * @param {[]} operands
+     * @returns {*}
+     */
+    defaultEvaluator(operatorValue, operands) {
+
+        /**
+         * Convert back to regular minus, now that we have the proper number of operands.
+         */
+        if (operatorValue === OPERATOR_UNARY_MINUS) {
+            operatorValue = '-';
+        }
+        /**
+         * This is a trick to avoid the problem of inconsistent comma usage in SQL.
+         */
+        if (operatorValue === ',') {
+            return [].concat(operands[0], operands[1]);
+        }
+
+        return {
+            [operatorValue]: operands
+        };
     }
 
     /**

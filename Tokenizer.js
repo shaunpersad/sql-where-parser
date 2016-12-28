@@ -6,7 +6,7 @@ const MODE_MATCH = 'modeMatch';
 
 /**
  * Sorts the tokenizable substrings by their length DESC.
- * 
+ *
  * @param {string} a
  * @param {string} b
  * @returns {number}
@@ -387,20 +387,26 @@ class Tokenizer {
          */
         config.shouldTokenize.sort(sortTokenizables).forEach((token) => {
 
-            this.tokenizeList.push(token);
-            this.tokenizeMap[token] = token;
+            if (!this.tokenizeMap[token]) {
+                this.tokenizeList.push(token);
+                this.tokenizeMap[token] = token;
+            }
         });
 
         config.shouldMatch.forEach((match) => {
 
-            this.matchList.push(match);
-            this.matchMap[match] = match;
+            if (this.matchMap[match]) {
+                this.matchList.push(match);
+                this.matchMap[match] = match;
+            }
         });
 
         config.shouldDelimitBy.forEach((delimiter) => {
 
-            this.delimiterList.push(delimiter);
-            this.delimiterMap[delimiter] = delimiter;
+            if (!this.delimiterMap[delimiter]) {
+                this.delimiterList.push(delimiter);
+                this.delimiterMap[delimiter] = delimiter;
+            }
         });
     }
 
