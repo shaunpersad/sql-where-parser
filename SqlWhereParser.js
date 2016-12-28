@@ -342,6 +342,11 @@ class SqlWhereParser {
         return outputStream[0];
     }
 
+    /**
+     *
+     * @param {string} sql
+     * @returns {[]}
+     */
     toArray(sql) {
 
         let expression = [];
@@ -391,7 +396,7 @@ class SqlWhereParser {
     static get defaultConfig() {
         return defaultConfig;
     }
-
+    
     static get Operator() {
         return Operator;
     }
@@ -401,10 +406,8 @@ class SqlWhereParser {
     }
 }
 
+/**
+ *
+ * @type {SqlWhereParser}
+ */
 module.exports = SqlWhereParser;
-
-const start = Date.now();
-const sql = 'A IN (true, false, NULl)';
-const parser = new SqlWhereParser();
-console.log(JSON.stringify(parser.parse(sql)));
-console.log(Date.now() - start);
