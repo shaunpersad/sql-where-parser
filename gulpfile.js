@@ -22,7 +22,7 @@ gulp.task('browserify', function() {
 });
 
 gulp.task('watch', function() {
-    gulp.watch(['SqlWhereParser.js', 'Tokenizer.js'], ['browserify']);
+    gulp.watch(['SqlWhereParser.js', 'TokenizeThis.js'], ['browserify']);
 });
 
 gulp.task('default', ['browserify', 'watch']);

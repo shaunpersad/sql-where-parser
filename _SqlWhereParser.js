@@ -516,7 +516,7 @@
 //
 //             it('takes an array of tokens and groups them explicitly, based on the order of operations', function() {
 //                
-//                 const Literal = SqlWhereParser.Tokenizer.Literal;
+//                 const Literal = SqlWhereParser.TokenizeThis.Literal;
 //
 //                 const orderedTokens = parser.setPrecedenceInExpression([
 //                     'a1', new Literal('='), 'a2', 
@@ -534,7 +534,7 @@
 //
 //             it("returns the operator's type (unary, binary, etc.)", function() {
 //
-//                 const Literal = SqlWhereParser.Tokenizer.Literal;
+//                 const Literal = SqlWhereParser.TokenizeThis.Literal;
 //                
 //                 parser.operators.forEach((operators) => {
 //

@@ -1,6 +1,6 @@
 "use strict";
 const Symbol = require('es6-symbol');
-const Tokenizer = require('./Tokenizer');
+const TokenizeThis = require('tokenize-this');
 
 /**
  * To distinguish between the binary minus and unary.
@@ -40,63 +40,6 @@ const unaryMinusDefinition = {
 };
 
 /**
- * The default config used.
- * 
- * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
- */
-const defaultConfig = {
-    operators: [ // TODO: add more operator definitions
-        {
-            '!': OPERATOR_TYPE_UNARY
-        },
-        unaryMinusDefinition,
-        {
-            '^': OPERATOR_TYPE_BINARY
-        },
-        {
-            '*': OPERATOR_TYPE_BINARY,
-            '/': OPERATOR_TYPE_BINARY,
-            '%': OPERATOR_TYPE_BINARY
-        },
-        {
-            '+': OPERATOR_TYPE_BINARY,
-            '-': OPERATOR_TYPE_BINARY
-        },
-        {
-            '=': OPERATOR_TYPE_BINARY,
-            '<': OPERATOR_TYPE_BINARY,
-            '>': OPERATOR_TYPE_BINARY,
-            '<=': OPERATOR_TYPE_BINARY,
-            '>=': OPERATOR_TYPE_BINARY,
-            '!=': OPERATOR_TYPE_BINARY
-        },
-        {
-            ',': OPERATOR_TYPE_BINARY // We treat commas as an operator, to aid in turning arbitrary numbers of comma-separated values into arrays.
-        },
-        {
-            'NOT': OPERATOR_TYPE_UNARY
-        },
-        {
-            'BETWEEN': OPERATOR_TYPE_TERNARY,
-            'IN': OPERATOR_TYPE_BINARY,
-            'IS': OPERATOR_TYPE_BINARY,
-            'LIKE': OPERATOR_TYPE_BINARY
-        },
-        {
-            'AND': OPERATOR_TYPE_BINARY
-        },
-        {
-            'OR': OPERATOR_TYPE_BINARY
-        }
-    ],
-    tokenizer: {
-        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '<', '>', '<=', '>=', '!'],
-        shouldMatch: ['"', "'", '`'],
-        shouldDelimitBy: [' ', "\n", "\r", "\t"]
-    }
-};
-
-/**
  * A wrapper class around operators to distinguish them from regular tokens.
  */
 class Operator {
@@ -133,13 +76,13 @@ class SqlWhereParser {
          *
          * @type {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
          */
-        config = Object.assign({}, config, defaultConfig);
+        config = Object.assign({}, this.constructor.defaultConfig, config);
 
         /**
          *
-         * @type {Tokenizer}
+         * @type {TokenizeThis}
          */
-        this.tokenizer = new Tokenizer(config.tokenizer);
+        this.tokenizer = new TokenizeThis(config.tokenizer);
 
         /**
          *
@@ -440,7 +383,58 @@ class SqlWhereParser {
      * @returns {{operators: [{}], tokenizer: {shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}}
      */
     static get defaultConfig() {
-        return defaultConfig;
+        
+        return {
+            operators: [ // TODO: add more operator definitions
+                {
+                    '!': OPERATOR_TYPE_UNARY
+                },
+                unaryMinusDefinition,
+                {
+                    '^': OPERATOR_TYPE_BINARY
+                },
+                {
+                    '*': OPERATOR_TYPE_BINARY,
+                    '/': OPERATOR_TYPE_BINARY,
+                    '%': OPERATOR_TYPE_BINARY
+                },
+                {
+                    '+': OPERATOR_TYPE_BINARY,
+                    '-': OPERATOR_TYPE_BINARY
+                },
+                {
+                    '=': OPERATOR_TYPE_BINARY,
+                    '<': OPERATOR_TYPE_BINARY,
+                    '>': OPERATOR_TYPE_BINARY,
+                    '<=': OPERATOR_TYPE_BINARY,
+                    '>=': OPERATOR_TYPE_BINARY,
+                    '!=': OPERATOR_TYPE_BINARY
+                },
+                {
+                    ',': OPERATOR_TYPE_BINARY // We treat commas as an operator, to aid in turning arbitrary numbers of comma-separated values into arrays.
+                },
+                {
+                    'NOT': OPERATOR_TYPE_UNARY
+                },
+                {
+                    'BETWEEN': OPERATOR_TYPE_TERNARY,
+                    'IN': OPERATOR_TYPE_BINARY,
+                    'IS': OPERATOR_TYPE_BINARY,
+                    'LIKE': OPERATOR_TYPE_BINARY
+                },
+                {
+                    'AND': OPERATOR_TYPE_BINARY
+                },
+                {
+                    'OR': OPERATOR_TYPE_BINARY
+                }
+            ],
+            tokenizer: {
+                shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=','!', '<', '>', '<=', '>=', '^'],
+                shouldMatch: ['"', "'", '`'],
+                shouldDelimitBy: [' ', "\n", "\r", "\t"]
+            }
+        };
     }
 
     static get Operator() {
