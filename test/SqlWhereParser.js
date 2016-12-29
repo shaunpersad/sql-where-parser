@@ -326,7 +326,7 @@ describe('SqlWhereParser', function() {
                 });
             });
             
-            it('Handles the BETWEEN case appropriately', function() {
+            it('It handles the BETWEEN case appropriately', function() {
 
                 const parser = new SqlWhereParser();
                 const parsed = parser.parse('A BETWEEN 5 AND 10 AND B = C');
@@ -394,10 +394,10 @@ describe('SqlWhereParser', function() {
                 const sql = 'name = "Shaun Persad" AND age >= 27';
                 const parser = new SqlWhereParser();
                 
-                const parsed = parser.parse(sql, (operator, operands) => {
+                const parsed = parser.parse(sql, (operatorValue, operands) => {
                     
                     timesCalled++;
-                    return parser.defaultEvaluator(operator, operands);
+                    return parser.defaultEvaluator(operatorValue, operands);
                 });
 
                 timesCalled.should.equal(3);
@@ -420,9 +420,9 @@ describe('SqlWhereParser', function() {
                 const sql = 'name = "Shaun Persad" AND age >= 27';
                 const parser = new SqlWhereParser();
 
-                const parsed = parser.parse(sql, (operator, operands) => {
+                const parsed = parser.parse(sql, (operatorValue, operands) => {
 
-                    return [operator, operands];
+                    return [operatorValue, operands];
                 });
                 
                 equals(parsed, [

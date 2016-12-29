@@ -301,7 +301,7 @@ equals(parsed, {
 });
 ```
 
-Handles the BETWEEN case appropriately.
+It handles the BETWEEN case appropriately.
 
 ```js
 const parser = new SqlWhereParser();
@@ -328,8 +328,7 @@ const parsed = parser.parse(sql);
 equals(parsed, {
     'AND': [
         {
-            '=': ['name', 'Shaun Persad'
-            ]
+            '=': ['name', 'Shaun Persad']
         },
         {
             '>=': ['age', 27]
@@ -368,10 +367,10 @@ let timesCalled = 0;
 const sql = 'name = "Shaun Persad" AND age >= 27';
 const parser = new SqlWhereParser();
 
-const parsed = parser.parse(sql, (operator, operands) => {
+const parsed = parser.parse(sql, (operatorValue, operands) => {
     
     timesCalled++;
-    return parser.defaultEvaluator(operator, operands);
+    return parser.defaultEvaluator(operatorValue, operands);
 });
 
 timesCalled.should.equal(3);
@@ -394,8 +393,8 @@ equals(parsed, {
 ```js
 const sql = 'name = "Shaun Persad" AND age >= 27';
 const parser = new SqlWhereParser();
-const parsed = parser.parse(sql, (operator, operands) => {
-    return [operator, operands];
+const parsed = parser.parse(sql, (operatorValue, operands) => {
+    return [operatorValue, operands];
 });
 
 equals(parsed, [
