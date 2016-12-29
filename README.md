@@ -249,8 +249,7 @@ equals(parsed, {
                                     '=': ['type', 'person']
                                 },
                                 {
-                                    'IN': ['location', ['NY', 'America']
-                                    ]
+                                    'IN': ['location', ['NY', 'America']]
                                 }
                             ]
                         },

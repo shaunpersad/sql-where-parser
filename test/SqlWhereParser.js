@@ -273,8 +273,7 @@ describe('SqlWhereParser', function() {
                                                     '=': ['type', 'person']
                                                 },
                                                 {
-                                                    'IN': ['location', ['NY', 'America']
-                                                    ]
+                                                    'IN': ['location', ['NY', 'America']]
                                                 }
                                             ]
                                         },

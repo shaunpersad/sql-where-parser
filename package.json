@@ -1,6 +1,6 @@
 {
   "name": "sql-where-parser",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Parses an SQL-like WHERE string into various forms.",
   "main": "SqlWhereParser.js",
   "scripts": {
