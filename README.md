@@ -1,869 +1,622 @@
-<a name="sqlwhereparser"></a>
+
 # SqlWhereParser
-<a name="sqlwhereparser-what-is-it"></a>
+
 ## What is it?
-SqlWhereParser parses the WHERE portion of an SQL string into many forms.
+
+SqlWhereParser parses the WHERE portion of an SQL-like string into an abstract syntax tree.
 
 ```js
-const sql = 'job = "developer" AND hasJob = true';
+const sql = 'name = "Shaun Persad" AND age >= 27';
 const parser = new SqlWhereParser();
 const parsed = parser.parse(sql);
-// "parsed" is an object that looks like:
-// {
-//     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
-//     "expression": [
-//         [
-//             "job",
-//             "=",
-//             "developer"
-//         ],
-//         "AND",
-//         [
-//             "hasJob",
-//             "=",
-//             true
-//         ]
-//     ],
-//     "expressionDisplay": [
-//         "job",
-//         "=",
-//         "developer",
-//         "AND",
-//         "hasJob",
-//         "=",
-//         true
-//     ],
-//     "expressionTree": [
-//         "AND",
-//         [
-//             [
-//                 "=",
-//                 [
-//                     "job",
-//                     "developer"
-//                 ]
-//             ],
-//             [
-//                 "=",
-//                 [
-//                     "hasJob",
-//                     true
-//                 ]
-//             ]
-//         ]
-//     ]
-// };
-```
-
-The "expression" result is an array where each sub-expression is explicitly grouped based on order of operations.
-
-```js
-//     "expression": [
-//         [
-//             "job",
-//             "=",
-//             "developer"
-//         ],
-//         "AND",
-//         [
-//             "hasJob",
-//             "=",
-//             true
-//         ]
-//     ],
-```
-
-The "expressionDisplay" result uses only the original groupings, except for unnecessary groups.
-
-```js
-//     "expressionDisplay": [
-//         "job",
-//         "=",
-//         "developer",
-//         "AND",
-//         "hasJob",
-//         "=",
-//         true
-//     ],
-```
-
-"expressionDisplay" is useful for mapping to the front-end, e.g. as HTML.
-
-```js
-const sql = 'job = "developer" AND (hasJob = true OR age > null)';
-const parser = new SqlWhereParser();
-const parsed = parser.parse(sql);
-const toHtml = (expression) => {
-    if (!expression || !(expression.constructor === Array)) {
-        const isOperator = parser.operatorType(expression);
-        if (isOperator) {
-            return `<strong class="operator">${expression}</strong>`;
+/**
+ * The tree is object-based, where each key is the operator, and its value is an array of the operands.
+ * The number of operands depends on if the operation is defined as unary, binary, or ternary in the config.
+ */
+equals(parsed, {
+    'AND': [
+        {
+            '=': ['name', 'Shaun Persad']
+        },
+        {
+           '>=': ['age', 27] 
         }
-        return `<span class="operand">${expression}</span>`;
+    ]
+});
+```
+
+You can also evaluate the query in-line as the expressions are being built.
+
+```js
+const sql = 'name = "Shaun Persad" AND age >= (20 + 7)';
+const parser = new SqlWhereParser();
+/**
+ * This evaluator function will evaluate the "+" operator with its operands by adding its operands together.
+ */
+const parsed = parser.parse(sql, (operatorValue, operands) => {
+    
+    if (operatorValue === '+') {
+        return operands[0] + operands[1];
     }
-    const html = expression.map((subExpression) => {
-        return toHtml(subExpression);
+    return parser.defaultEvaluator(operatorValue, operands);
+});
+
+equals(parsed, {
+    'AND': [
+        {
+            '=': ['name', 'Shaun Persad']
+        },
+        {
+            '>=': ['age', 27]
+        }
+    ]
+});
+```
+
+This evaluation can also be used to convert the AST into a specific tree, like a MongoDB query.
+
+```js
+const sql = 'name = "Shaun Persad" AND age >= 27';
+const parser = new SqlWhereParser();
+/**
+ * This will map each operand to its mongoDB equivalent.
+ */
+const parsed = parser.parse(sql, (operatorValue, operands) => {
+    switch (operatorValue) {
+        case '=':
+            return {
+                [operands[0]]: operands[1]
+            };
+        case 'AND':
+            return {
+                $and: operands
+            };
+        case '>=':
+            return {
+                [operands[0]]: {
+                    $gte: operands[1]
+                }
+            };
+    }
+});
+
+equals(parsed, {
+    $and: [
+        {
+            name: 'Shaun Persad'
+        },
+        {
+            age: {
+                $gte: 27
+            }
+        }
+    ]
+});
+```
+
+SqlWhereParser can also parse into an array-like structure, where each sub-array is its own group of parentheses in the SQL.
+
+```js
+const sql = '(name = "Shaun Persad") AND (age >= (20 + 7))';
+const parser = new SqlWhereParser();
+const sqlArray = parser.toArray(sql);
+equals(sqlArray, [['name', '=', 'Shaun Persad'], 'AND', ['age', '>=', [20, '+', 7]]]);
+```
+
+This array structure is useful for displaying the query on the front-end, e.g. as HTML.
+
+```js
+const sql = '(name = "Shaun Persad") AND age >= (20 + 7)';
+const parser = new SqlWhereParser();
+const sqlArray = parser.toArray(sql);
+/**
+ * This function will recursively map the elements of the array to HTML.
+ */
+const toHtml = (toConvert) => {
+    if (toConvert && toConvert.constructor === SqlWhereParser.Operator) {
+        return `<strong class="operator">${toConvert}</strong>`;
+    }
+    
+    if (!toConvert || !(toConvert.constructor === Array)) {
+        
+        return `<span class="operand">${toConvert}</span>`;
+    }
+    const html = toConvert.map((toConvert) => {
+        return toHtml(toConvert);
     });
     return `<div class="expression">${html.join('')}</div>`;
 };
-const html = toHtml(parsed.expressionDisplay);
-// "html" is now a string that looks like:
-// <div class="expression">
-//   <span class="operand">job</span><strong class="operator">=</strong><span class="operand">developer</span>
-//   <strong class="operator">AND</strong>
-//     <div class="expression">
-//       <span class="operand">hasJob</span><strong class="operator">=</strong><span class="operand">true</span>
-//       <strong class="operator">OR</strong>
-//       <span class="operand">age</span><strong class="operator">></strong><span class="operand">null</span>
-//     </div>
-// </div>
+
+const html = toHtml(sqlArray);
+equals(html,
+    '<div class="expression">' +
+        '<div class="expression">' +
+            '<span class="operand">name</span>' +
+            '<strong class="operator">=</strong>' +
+            '<span class="operand">Shaun Persad</span>' +
+        '</div>' +
+        '<strong class="operator">AND</strong>' +
+        '<span class="operand">age</span>' +
+        '<strong class="operator">>=</strong>' +
+        '<div class="expression">' +
+            '<span class="operand">20</span>' +
+            '<strong class="operator">+</strong>' +
+            '<span class="operand">7</span>' +
+        '</div>' +
+    '</div>'
+);
 ```
 
-The "expressionTree" result is an array where the first element is the operator, and the second element is an array of that operator's operands.
-
-```js
-//     "expressionTree": [
-//         "AND",
-//         [
-//             [
-//                 "=",
-//                 [
-//                     "job",
-//                     "developer"
-//                 ]
-//             ],
-//             [
-//                 "=",
-//                 [
-//                     "hasJob",
-//                     true
-//                 ]
-//             ]
-//         ]
-//     ]
-```
-
-"expressionTree" can be used to convert to other query languages, such as MongoDB or Elasticsearch.
-
-```js
-const sql = 'job = "developer" AND (hasJob = true OR age > 17)';
-const parser = new SqlWhereParser();
-const parsed = parser.parse(sql);
-const toMongo = (expression) => {
-    if (!expression || !(expression.constructor === Array)) {
-        return expression;
-    }
-    const operator = expression[0];
-    const operands = expression[1];
-    return map[operator](operands);
-};
-const map = {
-    '=': (operands) => {
-        return {
-            [operands[0]]: toMongo(operands[1])
-        };
-    },
-    '>': (operands) => {
-        return {
-            [operands[0]]: {
-                $gt: toMongo(operands[1])
-            }
-        };
-    },
-    'AND': (operands) => {
-        return {
-            $and : operands.map(toMongo)
-        };
-    },
-    'OR': (operands) => {
-        return {
-            $or: operands.map(toMongo)
-        };
-    }
-};
-const mongo = toMongo(parsed.expressionTree);
-// "mongo" is now an object that looks like:
-// {
-//   "$and": [
-//     {
-//       "job": "developer"
-//     },
-//     {
-//       "$or": [
-//         {
-//           "hasJob": true
-//         },
-//         {
-//           "age": {
-//             "$gt": 17
-//           }
-//         }
-//       ]
-//     }
-//   ]
-// }
-```
-
-If you wish to combine the tokens yourself, the "tokens" result is a flat array of the tokens as found in the original SQL string.
-
-```js
-//     "tokens": [ "(", "job", "=", "developer", "AND", "hasJob", "=", true, ")" ],
-```
-
-<a name="sqlwhereparser-installation"></a>
 ## Installation
+
 `npm install sql-where-parser`.
 
 ```js
 // or if in the browser: <script src="sql-where-parser/sql-where-parser.min.js"></script>
 ```
 
-<a name="sqlwhereparser-api"></a>
+## Usage
+
+`require` it, and create a new instance.
+
+```js
+//const SqlWhereParser = require('sql-where-parser');
+const sql = 'name = "Shaun Persad" AND age >= 27';
+const parser = new SqlWhereParser();
+
+const parsed = parser.parse(sql);
+const sqlArray = parser.toArray(sql);
+```
+
+
+## Advanced Usage
+
+### Supplying a config object to the constructor is also possible (see [here](#defaultconfigobject) for all options)
+
+This can be used to create new operators.
+
+```js
+const config = SqlWhereParser.defaultConfig; // start off with the default config.
+
+config.operators[5]['<=>'] = 2; // number of operands to expect for this operator.
+config.operators[5]['<>'] = 2; // number of operands to expect for this operator.
+config.tokenizer.shouldTokenize.push('<=>', '<>');
+const sql = 'name <> "Shaun Persad" AND age <=> 27';
+const parser = new SqlWhereParser(config); // use the new config
+const parsed = parser.parse(sql);
+equals(parsed, {
+    'AND': [
+        {
+            '<>': ['name', 'Shaun Persad']
+        },
+        {
+            '<=>': ['age', 27]
+        }
+    ]
+});
+```
+
 ## API
-<a name="sqlwhereparser-api-parsestring-sqlobject"></a>
-### #parse(String: sql):Object
-returns a results object with tokens, expression, expressionDisplay, and expressionTree properties.
+
+### #parse(sql:String):Object
+
+Parses the SQL string into an AST with the proper order of operations.
 
 ```js
-const parsed = parser.parse('');
-parsed.should.have.property('tokens').which.is.an.Array;
-parsed.should.have.property('expression').which.is.an.Array;
-parsed.should.have.property('expressionDisplay').which.is.an.Array;
-parsed.should.have.property('expressionTree').which.is.an.Array;
-```
+const sql = 'name = "Shaun Persad" AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql);
 
-<a name="sqlwhereparser-api-parsestring-sqlobject-resultstokens"></a>
-#### results.tokens
-is an array containing the tokens of the SQL string (wrapped in parentheses).
-
-```js
-const results = parser.parse('name = shaun');
-results.tokens.should.be.an.Array;
-equals(results.tokens, ['(', 'name', '=', 'shaun', ')']);
-```
-
-treats anything wrapped in single-quotes, double-quotes, and ticks as a single token.
-
-```js
-const results = parser.parse(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
-results.tokens.should.be.an.Array;
-equals(results.tokens, ['(', '(', 'name', '=', 'shaun', ')', 'and', 'a', '=', 'b(', 'or', '(', 'c', 'OR', 'd e, f', ')', ')']);
-```
-
-<a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpression"></a>
-#### results.expression
-is the parsed SQL as an array.
-
-```js
-const parsed = parser.parse('name = shaun');
-equals(parsed.expression, ['name', '=', 'shaun']);
-```
-
-does not care about spaces.
-
-```js
-const parsed = parser.parse('  name  =  shaun     ');
-equals(parsed.expression, ['name', '=', 'shaun']);
-```
-
-strips out unnecessary parentheses.
-
-```js
-const parsed = parser.parse('(((name) = ((shaun))))');
-equals(parsed.expression, ['name', '=', 'shaun']);
-```
-
-adds explicit groupings defined by the order of operations.
-
-```js
-const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
 /**
  * Original.
  */
-'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
+'name = "Shaun Persad" AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
 /**
  * Perform equals.
  */
-'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
+'(name = "Shaun Persad") AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
 /**
  * Perform IN
  */
-'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
+'(name = "Shaun Persad") AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
 /**
  * Perform AND
  */
-'(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
-equals(parsed.expression, [
-    [
-        [
-            "name",
-            "=",
-            "shaun"
-        ],
-        "AND",
-        [
-            "job",
-            "=",
-            "developer"
-        ]
-    ],
-    "AND",
-    [
-        [
-            "gender",
-            "=",
-            "male"
-        ],
-        "OR",
-        [
-            [
-                [
-                    "type",
-                    "=",
-                    "person"
-                ],
-                "AND",
-                [
-                    "location",
-                    "IN",
-                    [
-                        "NY",
-                        "America"
-                    ]
-                ]
-            ],
-            "AND",
-            [
-                "hobby",
-                "=",
-                "coding"
+'(((name = "Shaun Persad") AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
+equals(parsed, {
+    'AND': [
+        {
+            'AND': [
+                {
+                    '=': ['name', 'Shaun Persad']
+                },
+                {
+                    '=': ['job', 'developer']
+                }
             ]
-        ]
+        },
+        {
+            'OR': [
+                {
+                    '=': ['gender', 'male']
+                },
+                {
+                    'AND': [
+                        {
+                            'AND': [
+                                {
+                                    '=': ['type', 'person']
+                                },
+                                {
+                                    'IN': ['location', ['NY', 'America']
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            '=': ['hobby', 'coding']
+                        }
+                    ]
+                }
+            ]
+        }
     ]
-]);
+});
 ```
 
-<a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpressiondisplay"></a>
-#### results.expressionDisplay
-uses only the original groupings, except for unnecessary groups.
+It handles the unary minus case appropriately.
 
 ```js
-const parsed = parser.parse('(name = shaun AND job = developer AND ((gender = male OR type = person AND location IN (NY, America) AND hobby = coding)))');
-equals(parsed.expressionDisplay, [
-    "name",
-    "=",
-    "shaun",
-    "AND",
-    "job",
-    "=",
-    "developer",
-    "AND",
-    [
-        "gender",
-        "=",
-        "male",
-        "OR",
-        "type",
-        "=",
-        "person",
-        "AND",
-        "location",
-        "IN",
-        [
-            "NY",
-            "America"
-        ],
-        "AND",
-        "hobby",
-        "=",
-        "coding"
+const parser = new SqlWhereParser();
+let parsed = parser.parse('1 + -5');
+equals(parsed, {
+    '+': [
+        1,
+        {
+            '-': [5]
+        }
     ]
-]);
+});
+
+parsed = parser.parse('-1 + -(5 - - 5)');
+equals(parsed, {
+    '+': [
+        {
+            '-': [1]
+        },
+        {
+            '-': [
+                {
+                    '-': [
+                        5,
+                        {
+                            '-': [5]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+});
 ```
 
-<a name="sqlwhereparser-api-parsestring-sqlobject-resultsexpressiontree"></a>
-#### results.expressionTree
-converts the expression into a tree.
+Handles the BETWEEN case appropriately.
 
 ```js
-const parsed = parser.parse('name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)');
-/**
- * Original.
- */
-'name = shaun AND job = developer AND (gender = male OR type = person AND location IN (NY, America) AND hobby = coding)';
-/**
- * Perform equals.
- */
-'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND location IN (NY, America) AND (hobby = coding))';
-/**
- * Perform IN
- */
-'(name = shaun) AND (job = developer) AND ((gender = male) OR (type = person) AND (location IN (NY, America)) AND (hobby = coding))';
-/**
- * Perform AND
- */
-'(((name = shaun) AND (job = developer)) AND ((gender = male) OR (((type = person) AND (location IN (NY, America))) AND (hobby = coding))))';
-equals(parsed.expressionTree, [
+const parser = new SqlWhereParser();
+const parsed = parser.parse('A BETWEEN 5 AND 10 AND B = C');
+equals(parsed, {
+    'AND': [
+        {
+            'BETWEEN': ['A', 5, 10]
+        },
+        {
+            '=': ['B', 'C']
+        }
+    ]
+});
+```
+
+Unnecessarily nested parentheses do not matter.
+
+```js
+const sql = '((((name = "Shaun Persad")) AND (age >= 27)))';
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql);
+
+equals(parsed, {
+    'AND': [
+        {
+            '=': ['name', 'Shaun Persad'
+            ]
+        },
+        {
+            '>=': ['age', 27]
+        }
+    ]
+});
+```
+
+Throws a SyntaxError if the supplied parentheses do not match.
+
+```js
+const sql = '(name = "Shaun Persad" AND age >= 27';
+const parser = new SqlWhereParser();
+
+let failed = false;
+
+try {
+    const parsed = parser.parse(sql);
+    failed = false;
+    
+} catch (e) {
+    failed = (e.constructor === SyntaxError);
+}
+if (!failed) {
+    throw new Error('A SyntaxError was not thrown.');
+}
+```
+
+### #parse(sql:String, evaluator(operatorValue:String|Symbol, operands:Array):Function):*
+
+Uses the supplied evaluator function to convert an operator and its operands into its evaluation. The default evaluator actually does no "evaluation" in the mathematical sense. Instead it creates an object whose key is the operator, and the value is an array of the operands.
+
+```js
+let timesCalled = 0;
+                
+const sql = 'name = "Shaun Persad" AND age >= 27';
+const parser = new SqlWhereParser();
+
+const parsed = parser.parse(sql, (operator, operands) => {
+    
+    timesCalled++;
+    return parser.defaultEvaluator(operator, operands);
+});
+
+timesCalled.should.equal(3);
+
+equals(parsed, {
+    'AND': [
+        {
+            '=': ['name', 'Shaun Persad'
+            ]
+        },
+        {
+            '>=': ['age', 27]
+        }
+    ]
+});
+```
+
+"Evaluation" is subjective, and this can be exploited to convert the default object-based structure of the AST into something else, like this array-based structure.
+
+```js
+const sql = 'name = "Shaun Persad" AND age >= 27';
+const parser = new SqlWhereParser();
+const parsed = parser.parse(sql, (operator, operands) => {
+    return [operator, operands];
+});
+
+equals(parsed, [
     'AND',
     [
-        [
-            'AND',
-            [
-                [
-                    '=',
-                    [
-                        'name',
-                        'shaun'
-                    ]
-                ],
-                [
-                    '=',
-                    [
-                        'job',
-                        'developer'
-                    ]
-                ]
-            ]
-        ],
-        [
-            'OR',
-            [
-                [
-                    '=',
-                    [
-                        'gender',
-                        'male'
-                    ]
-                ],
-                [
-                    'AND',
-                    [
-                        [
-                            'AND',
-                            [
-                                [
-                                    '=',
-                                    [
-                                        'type',
-                                        'person'
-                                    ]
-                                ],
-                                [
-                                    'IN',
-                                    [
-                                        'location',
-                                        [
-                                            'NY',
-                                            'America'
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ],
-                        [
-                            '=',
-                            [
-                                'hobby',
-                                'coding'
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
+        ['=',['name', 'Shaun Persad']],
+        ['>=', ['age', 27]]
     ]
 ]);
 ```
 
-<a name="sqlwhereparser-api-expressiontreefromexpressionarray-expressionarray"></a>
-### #expressionTreeFromExpression(Array|*: expression):Array
-returns a tree representation of the supplied expression array.
+### #toArray(sql:String):Array
+
+Parses the SQL string into a nested array, where each expression is its own array.
 
 ```js
-const syntaxTree = parser.expressionTreeFromExpression([]);
-syntaxTree.should.be.an.Array;
-```
-
-<a name="sqlwhereparser-api-setprecedenceinexpressionarray-expressionarray"></a>
-### #setPrecedenceInExpression(Array|*: expression):Array
-takes an array of tokens and groups them explicitly, based on the order of operations.
-
-```js
-const orderedTokens = parser.setPrecedenceInExpression(['a1', '=', 'a2', 'OR', 'b', 'AND', 'c', 'OR', 'd', 'LIKE', 'e', 'AND', 'f', '<', 'g']);
-equals(orderedTokens, [[["a1","=","a2"],"OR",["b","AND","c"]],"OR",[["d","LIKE","e"],"AND",["f","<","g"]]]);
-```
-
-<a name="sqlwhereparser-api-operatortypestring-operatorfunctionnull"></a>
-### #operatorType(String: operator):Function|null
-returns the operator's type (unary, binary, etc.).
-
-```js
-parser.operators.forEach((operators) => {
-    Object.keys(operators).forEach((operator) => {
-        const type = operators[operator];
-        parser.operatorType(operator).should.equal(type);
-        parser.operatorType(operator).should.be.a.Function;
-    });
-});
-```
-
-<a name="sqlwhereparser-api-operatorsarray"></a>
-### #operators:Array
-is the list of supported operators, ordered by precedence, and grouped by the same level of precedence.
-
-```js
-parser.operators.should.be.an.Array;
- 
- const operatorGroups = parser.operators.map((operators) => {
-     return Object.keys(operators);
- });
- 
- equals(operatorGroups, [
-     ['*', '/', '%'],
-     ['+', '-'],
-     ['=', '!=', '<', '>', '<=', '>='],
-     ['NOT'],
-     ['BETWEEN', 'IN', 'IS', 'LIKE'],
-     ['AND'],
-     ['OR']
- ]);
-```
-
-can be added to or overwritten by subclassing SqlWhereParser into your own class.
-
-```js
-class MySqlWhereParser extends SqlWhereParser {
-    constructor() {
-        const BINARY = SqlWhereParser.OPERATOR_TYPE_BINARY;
-        super();
-        this.operators[2]['<=>'] = BINARY; // Equal (Safe to compare NULL values)
-        this.operators[2]['<>'] = BINARY; // Not Equal
-    }
-}
-const mySqlParser = new MySqlWhereParser();
-const parsed = mySqlParser.parse('a <> b OR b <=> c');
-equals(parsed.expressionTree, [
-    'OR',
-    [
-        [
-            '<>',
-            [
-                'a',
-                'b'
-            ]
-        ],
-        [
-            '<=>',
-            [
-                'b',
-                'c'
-            ]
-        ]
-    ]
+const sql = '(name = "Shaun Persad") AND (age >= (20 + 7))';
+const parser = new SqlWhereParser();
+const sqlArray = parser.toArray(sql);
+equals(sqlArray, [
+    ['name', '=', 'Shaun Persad'], 'AND', ['age', '>=', [20, '+', 7]]
 ]);
 ```
 
-<a name="sqlwhereparser-api-operatorsflattenedobject"></a>
-### #operatorsFlattened:Object
-is an object whose keys are the supported operators.
+Unnecessarily nested parentheses do not matter.
 
 ```js
-const operatorsFlattened = parser.operatorsFlattened;
+const sql = '((((name = "Shaun Persad"))) AND ((age) >= ((20 + 7))))';
+const parser = new SqlWhereParser();
+const sqlArray = parser.toArray(sql);
+equals(sqlArray, [
+    ['name', '=', 'Shaun Persad'], 'AND', ['age', '>=', [20, '+', 7]]
+]);
+```
+
+### #operatorPrecedenceFromValues(operatorValue1:String|Symbol, operatorValue2:String|Symbol):Boolean
+
+Determines if operator 2 is of a higher precedence than operator 1.
+
+```js
+const parser = new SqlWhereParser();
                 
-parser.operators.forEach((operators) => {
-    
-    Object.keys(operators).forEach((operator) => {
-       
-        operatorsFlattened[operator].should.equal(operators[operator]);
-    });
+parser.operatorPrecedenceFromValues('AND', 'OR').should.equal(false); // AND is higher than OR
+
+parser.operatorPrecedenceFromValues('+', '-').should.equal(true); // + and - are equal
+parser.operatorPrecedenceFromValues('+', '*').should.equal(true); // * is higher than +
+/**
+ * For full precedence list, check the [defaultConfig](#defaultconfigobject) object.
+ */
+```
+
+It also works if either of the operator values are a Symbol instead of a String.
+
+```js
+const parser = new SqlWhereParser();
+parser.operatorPrecedenceFromValues(SqlWhereParser.OPERATOR_UNARY_MINUS, '-').should.equal(false); // unary minus is higher than minus
+```
+
+### #getOperator(operatorValue:String|Symbol):Operator
+
+Returns the corresponding instance of the Operator class.
+
+```js
+const parser = new SqlWhereParser();
+const minus = parser.getOperator('-');
+minus.should.be.instanceOf(SqlWhereParser.Operator);
+minus.should.have.property('value', '-');
+minus.should.have.property('precedence', 4);
+minus.should.have.property('type', 2); // its binary
+```
+
+It also works if the operator value is a Symbol instead of a String.
+
+```js
+const parser = new SqlWhereParser();
+const unaryMinus = parser.getOperator(SqlWhereParser.OPERATOR_UNARY_MINUS);
+unaryMinus.should.be.instanceOf(SqlWhereParser.Operator);
+unaryMinus.should.have.property('value', SqlWhereParser.OPERATOR_UNARY_MINUS);
+unaryMinus.should.have.property('precedence', 1);
+unaryMinus.should.have.property('type', 1); // its unary
+```
+
+### #defaultEvaluator(operatorValue:String|Symbol, operands:Array)
+
+Converts the operator and its operands into an object whose key is the operator value, and the value is the array of operands.
+
+```js
+const parser = new SqlWhereParser();
+const evaluation = parser.defaultEvaluator('OPERATOR', [1, 2, 3]);
+equals(evaluation, {
+    'OPERATOR': [1, 2, 3]
 });
 ```
 
-<a name="sqlwhereparser-api-tokenizestring-sql-function-iterateearray"></a>
-### .tokenize(String: sql[, Function: iteratee]):Array
-returns an array containing the tokens of the SQL string.
+...Except for the special "," operator, which acts like a binary operator, but is not really an operator. It combines anything comma-separated into an array.
 
 ```js
-const tokens = SqlWhereParser.tokenize('name = shaun');
-tokens.should.be.an.Array;
-equals(tokens, ['name', '=', 'shaun']);
+const parser = new SqlWhereParser();
+const evaluation = parser.defaultEvaluator(',', [1, 2]);
+equals(evaluation, [1, 2]);
 ```
 
-treats anything wrapped in single-quotes, double-quotes, and ticks as a single token.
+When used in the recursive manner that it is, we are able to combine the results of several binary "," operations into a single array.
 
 ```js
-const tokens = SqlWhereParser.tokenize(`(name = shaun) and "a" = 'b(' or (\`c\` OR "d e, f")`);
-tokens.should.be.an.Array;
-equals(tokens, ['(', 'name', '=', 'shaun', ')', 'and', 'a', '=', 'b(', 'or', '(', 'c', 'OR', 'd e, f', ')']);
+const parser = new SqlWhereParser();
+const evaluation = parser.defaultEvaluator(',', [[1, 2], 3]);
+equals(evaluation, [1, 2, 3]);
 ```
 
-can be supplied with an optional iteratee function, which is called when each token is ready.
+With the unary minus Symbol, it converts it back into a regular minus string, since the operands have been determined by this point.
 
 ```js
-const collectedTokens = [];
-const tokens = SqlWhereParser.tokenize('name = shaun', (token) => {
-    collectedTokens.push(token);
+const parser = new SqlWhereParser();
+const evaluation = parser.defaultEvaluator(SqlWhereParser.OPERATOR_UNARY_MINUS, [1]);
+equals(evaluation, {
+    '-': [1]
 });
-collectedTokens.should.be.an.Array;
-equals(tokens, collectedTokens);
 ```
 
-<a name="sqlwhereparser-api-reducearrayarray-arrarray"></a>
-### .reduceArray(Array: arr):Array
-reduces unnecessarily nested arrays.
+### #tokenizer:TokenizeThis
+
+The tokenizer used on the string. See documentation [here](https://github.com/shaunpersad/tokenize-this).
 
 ```js
-const arr = [[['hey', 'hi']]];
-const reducedArr = SqlWhereParser.reduceArray(arr);
-let passed = true;
-try {
-    equals(arr, reducedArr);
-    passed = false;
-} catch(e) {
-    equals(reducedArr, ['hey', 'hi']);
-}
-if (!passed) {
-    throw new Error('Did not reduce the array');
-}
+const parser = new SqlWhereParser();
+parser.tokenizer.should.be.instanceOf(TokenizeThis);
 ```
 
-<a name="sqlwhereparser-api-operator_type_unary"></a>
-### .OPERATOR_TYPE_UNARY
-is a function(indexOfOperatorInExpression, expression) that returns an array containing the index of where the operand is in the expression.
+### #operators:Object
+
+An object whose keys are the supported operator values, and whose values are instances of the Operator class.
 
 ```js
-const operand = ['a', 'AND', 'b'];
-const expression = ['NOT', operand];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_UNARY;
-const indexes = getIndexes(0, expression);
-const operandIndex = indexes[0];
-expression[operandIndex].should.equal(operand);
+const parser = new SqlWhereParser();
+const operators = ["!", SqlWhereParser.OPERATOR_UNARY_MINUS, "^","*","/","%","+","-","=","<",">","<=",">=","!=",",","NOT","BETWEEN","IN","IS","LIKE","AND","OR"];
+
+operators.forEach((operator) => {
+   
+    parser.operators[operator].should.be.instanceOf(SqlWhereParser.Operator);
+});
 ```
 
-throws a syntax error if the operand is not found in the expression.
+### .defaultConfig:Object
+
+The default config object used when no config is supplied. For the tokenizer config options, see [here](https://github.com/shaunpersad/tokenize-this#defaultconfigobject).
 
 ```js
-const expression = ['NOT'];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_UNARY;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
+const OPERATOR_TYPE_UNARY = 1;
+const OPERATOR_TYPE_BINARY = 2;
+const OPERATOR_TYPE_TERNARY = 3;
+
+const unaryMinusDefinition = {
+    [SqlWhereParser.OPERATOR_UNARY_MINUS]: OPERATOR_TYPE_UNARY
+};
+
+equals(SqlWhereParser.defaultConfig, {
+    operators: [
+        {
+            '!': OPERATOR_TYPE_UNARY
+        },
+        unaryMinusDefinition,
+        {
+            '^': OPERATOR_TYPE_BINARY
+        },
+        {
+            '*': OPERATOR_TYPE_BINARY,
+            '/': OPERATOR_TYPE_BINARY,
+            '%': OPERATOR_TYPE_BINARY
+        },
+        {
+            '+': OPERATOR_TYPE_BINARY,
+            '-': OPERATOR_TYPE_BINARY
+        },
+        {
+            '=': OPERATOR_TYPE_BINARY,
+            '<': OPERATOR_TYPE_BINARY,
+            '>': OPERATOR_TYPE_BINARY,
+            '<=': OPERATOR_TYPE_BINARY,
+            '>=': OPERATOR_TYPE_BINARY,
+            '!=': OPERATOR_TYPE_BINARY
+        },
+        {
+            ',': OPERATOR_TYPE_BINARY // We treat commas as an operator, to aid in turning arbitrary numbers of comma-separated values into arrays.
+        },
+        {
+            'NOT': OPERATOR_TYPE_UNARY
+        },
+        {
+            'BETWEEN': OPERATOR_TYPE_TERNARY,
+            'IN': OPERATOR_TYPE_BINARY,
+            'IS': OPERATOR_TYPE_BINARY,
+            'LIKE': OPERATOR_TYPE_BINARY
+        },
+        {
+            'AND': OPERATOR_TYPE_BINARY
+        },
+        {
+            'OR': OPERATOR_TYPE_BINARY
+        }
+    ],
+    tokenizer: {
+        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=','!', '<', '>', '<=', '>=', '^'],
+        shouldMatch: ['"', "'", '`'],
+        shouldDelimitBy: [' ', "\n", "\r", "\t"]
+    }
+});
 ```
 
-<a name="sqlwhereparser-api-operator_type_binary"></a>
-### .OPERATOR_TYPE_BINARY
-is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.
+### .Operator:Operator
+
+The Operator class.
 
 ```js
-const operand1 = ['a', 'AND', 'b'];
-const operand2 = ['c', 'OR', 'd'];
-const expression = [operand1, 'AND', operand2];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY;
-const indexes = getIndexes(1, expression);
-const operand1Index = indexes[0];
-const operand2Index = indexes[1];
-expression[operand1Index].should.equal(operand1);
-expression[operand2Index].should.equal(operand2);
+const parser = new SqlWhereParser();
+parser.operators['AND'].should.be.instanceOf(SqlWhereParser.Operator);
 ```
 
-throws a syntax error if any of the operands are not found in the expression.
+### .OPERATOR_UNARY_MINUS:Symbol
+
+The Symbol used as the unary minus operator value.
 
 ```js
-let expression = ['AND'];
-let getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['a', 'AND'];
-try {
-    const indexes = getIndexes(1, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['AND', 'b'];
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-```
-
-<a name="sqlwhereparser-api-operator_type_binary_in"></a>
-### .OPERATOR_TYPE_BINARY_IN
-is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.
-
-```js
-const operand1 = 'field';
-const operand2 = [1, 2, 3];
-const expression = [operand1, 'IN', operand2];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
-const indexes = getIndexes(1, expression);
-const operand1Index = indexes[0];
-const operand2Index = indexes[1];
-expression[operand1Index].should.equal(operand1);
-expression[operand2Index].should.equal(operand2);
-```
-
-throws a syntax error if any of the operands are not found in the expression.
-
-```js
-let expression = ['IN'];
-let getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['a', 'IN'];
-try {
-    const indexes = getIndexes(1, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['IN', [1, 2]];
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-```
-
-throws a syntax error if the second operand is not an array.
-
-```js
-const expression = ['field', 'IN', 'value'];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-```
-
-provides a LiteralIndex as the array operand's index, to alert the parser that this operand is a literal and requires no further parsing.
-
-```js
-const operand1 = 'field';
-const operand2 = [1, 2, 3];
-const expression = [operand1, 'IN', operand2];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_BINARY_IN;
-const indexes = getIndexes(1, expression);
-const operand1Index = indexes[0];
-const operand2Index = indexes[1];
-expression[operand1Index].should.equal(operand1);
-expression[operand2Index].should.equal(operand2);
-operand2Index.constructor.should.equal(SqlWhereParser.LiteralIndex);
-```
-
-<a name="sqlwhereparser-api-operator_type_ternary_between"></a>
-### .OPERATOR_TYPE_TERNARY_BETWEEN
-is a function(indexOfOperatorInExpression, expression) that returns an array of indexes of where the operands are in the expression.
-
-```js
-const operand1 = 'field';
-const operand2 = 1;
-const operand3 = 5;
-const expression = [operand1, 'BETWEEN', operand2, 'AND', operand3];
-const getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
-const indexes = getIndexes(1, expression);
-const operand1Index = indexes[0];
-const operand2Index = indexes[1];
-const operand3Index = indexes[2];
-expression[operand1Index].should.equal(operand1);
-expression[operand2Index].should.equal(operand2);
-expression[operand3Index].should.equal(operand3);
-```
-
-throws a syntax error if any of the operands are not found in the expression.
-
-```js
-let expression = ['BETWEEN'];
-let getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['a', 'BETWEEN'];
-try {
-    const indexes = getIndexes(1, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-expression = ['a', 'BETWEEN', 1, 'AND'];
-try {
-    const indexes = getIndexes(1, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
-```
-
-throws a syntax error if the BETWEEN does not include an AND in between the {min} and {max}.
-
-```js
-let expression = ['a', 'BETWEEN', 1, 'OR', 2];
-let getIndexes = SqlWhereParser.OPERATOR_TYPE_TERNARY_BETWEEN;
-let passed = true;
-try {
-    const indexes = getIndexes(0, expression);
-    passed = false;
-} catch(e) {
-    e.should.be.instanceOf(SyntaxError);
-}
-if (!passed) {
-    throw new Error('Did not throw a syntax error');
-}
+(typeof SqlWhereParser.OPERATOR_UNARY_MINUS).should.equal('symbol');
 ```
