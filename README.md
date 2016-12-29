@@ -195,4 +195,5 @@ equals(parsed, {
 });
 ```
 
+## API
 For the full API documentation and more examples, see [here](https://github.com/shaunpersad/sql-where-parser/blob/master/API.md).

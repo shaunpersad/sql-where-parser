@@ -165,6 +165,7 @@ const sql = '(name = "Shaun Persad" AND age >= 27';
 ```
 
 
+
 #### #parse(sql:String, evaluator:Function):*
 
 Uses the supplied `evaluator(operatorValue:String|Symbol, operands:Array)` function to convert an operator and its operands into its evaluation. The default evaluator actually does no "evaluation" in the mathematical sense. Instead it creates an object whose key is the operator, and the value is an array of the operands.
@@ -209,6 +210,7 @@ equals(parsed, [
 ```
 
 
+
 #### #toArray(sql:String):Array
 
 Parses the SQL string into a nested array, where each expression is its own array.
@@ -234,6 +236,7 @@ equals(sqlArray, [
 ```
 
 
+
 #### #operatorPrecedenceFromValues(operatorValue1:String|Symbol, operatorValue2:String|Symbol):Boolean
 
 Determines if operator 2 is of a higher precedence than operator 1.
@@ -253,6 +256,7 @@ It also works if either of the operator values are a Symbol instead of a String.
 const parser = new SqlWhereParser();
 parser.operatorPrecedenceFromValues(SqlWhereParser.OPERATOR_UNARY_MINUS, '-').should.equal(false); // unary minus is higher than minus
 ```
+
 
 
 #### #getOperator(operatorValue:String|Symbol):Operator
@@ -278,6 +282,7 @@ unaryMinus.should.have.property('value', SqlWhereParser.OPERATOR_UNARY_MINUS);
 unaryMinus.should.have.property('precedence', 1);
 unaryMinus.should.have.property('type', 1); // its unary
 ```
+
 
 
 #### #defaultEvaluator(operatorValue:String|Symbol, operands:Array)
@@ -319,6 +324,7 @@ equals(evaluation, {
 ```
 
 
+
 #### #tokenizer:TokenizeThis
 
 The tokenizer used on the string. See documentation [here](https://github.com/shaunpersad/tokenize-this).
@@ -327,6 +333,7 @@ The tokenizer used on the string. See documentation [here](https://github.com/sh
 const parser = new SqlWhereParser();
 parser.tokenizer.should.be.instanceOf(TokenizeThis);
 ```
+
 
 
 #### #operators:Object
@@ -340,6 +347,7 @@ operators.forEach((operator) => {
     parser.operators[operator].should.be.instanceOf(SqlWhereParser.Operator);
 });
 ```
+
 
 
 #### .defaultConfig:Object
@@ -407,6 +415,7 @@ equals(SqlWhereParser.defaultConfig, {
 ```
 
 
+
 #### .Operator:Operator
 
 The Operator class.
@@ -415,6 +424,7 @@ The Operator class.
 const parser = new SqlWhereParser();
 parser.operators['AND'].should.be.instanceOf(SqlWhereParser.Operator);
 ```
+
 
 
 #### .OPERATOR_UNARY_MINUS:Symbol
