@@ -175,6 +175,8 @@ const sqlArray = parser.toArray(sql); // Array
 
 #### see [here](https://github.com/shaunpersad/sql-where-parser/blob/master/API.md#defaultconfigobject) for all options
 
+Modifying the config can be used to add new operators:
+
 ```js
 const config = SqlWhereParser.defaultConfig; // start off with the default config.
 config.operators[5]['<=>'] = 2; // number of operands to expect for this operator.
