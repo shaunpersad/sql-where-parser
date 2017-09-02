@@ -1,6 +1,6 @@
 {
   "name": "sql-where-parser",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Parses an SQL-like WHERE string into various forms.",
   "main": "SqlWhereParser.js",
   "scripts": {
@@ -23,7 +23,7 @@
     "mongo",
     "elasticsearch"
   ],
-  "author": "Shaun Persad <shaunpersad@gmail.com> (http://inspirationjs.io)",
+  "author": "Shaun Persad <shaunpersad@gmail.com> (http://github.com/shaunpersad)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/shaunpersad/sql-where-parser/issues"
